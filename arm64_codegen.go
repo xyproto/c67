@@ -4188,8 +4188,8 @@ func (acg *ARM64CodeGen) generateRuntimeHelpers() error {
 	// b.ge positive
 	posJumpItoa := acg.eb.text.Len()
 	acg.out.BranchCond("ge", 0) // Placeholder
-	// neg x0, x0
-	acg.out.out.writer.WriteBytes([]byte{0x00, 0x00, 0x00, 0xcb})
+	// neg x0, x0 (encoded as sub x0, xzr, x0)
+	acg.out.out.writer.WriteBytes([]byte{0xe0, 0x03, 0x00, 0xcb})
 	// mov x3, #1
 	acg.out.out.writer.WriteBytes([]byte{0x23, 0x00, 0x80, 0xd2})
 

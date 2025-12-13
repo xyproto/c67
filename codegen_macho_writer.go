@@ -25,6 +25,12 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 		if strings.HasSuffix(funcName, "$stub") {
 			funcName = funcName[:len(funcName)-5] // Remove "$stub"
 		}
+
+		// Skip internal C67 runtime functions (they're defined in the binary)
+		if strings.HasPrefix(funcName, "_c67_") || strings.HasPrefix(funcName, "c67_") {
+			continue
+		}
+
 		neededSet[funcName] = true
 	}
 
@@ -45,12 +51,23 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 	}
 
 	// First, write all rodata symbols to the rodata buffer and assign addresses
-	pageSize := uint64(0x4000) // 16KB page size for ARM64
+	pageSize := uint64(0x4000)      // 16KB page size for ARM64
+	baseAddr := uint64(0x100000000) // macOS base address (4GB zero page)
+
+	// Calculate text section address (after Mach-O headers)
+	// This matches the calculation in macho.go
+	headerSize := uint32(32) // MachHeader64 size
+	// Estimate load commands size (this is a rough estimate, macho.go has the exact calculation)
+	// LC_SEGMENT_64 (TEXT), LC_SEGMENT_64 (DATA), LC_SYMTAB, LC_DYSYMTAB, LC_LOAD_DYLIB
+	estimatedLoadCmdsSize := uint32(1000) // Conservative estimate
+	fileHeaderSize := uint64(headerSize + estimatedLoadCmdsSize)
+	textSectAddr := baseAddr + fileHeaderSize
+
 	textSize := uint64(fc.eb.text.Len())
 	textSizeAligned := (textSize + pageSize - 1) &^ (pageSize - 1)
 
 	// Calculate rodata address (comes after __TEXT segment)
-	rodataAddr := pageSize + textSizeAligned
+	rodataAddr := baseAddr + pageSize + textSizeAligned
 
 	if VerboseMode {
 		fmt.Fprintln(os.Stderr, "-> Writing rodata symbols")
@@ -70,11 +87,33 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 
 	rodataSize := fc.eb.rodata.Len()
 
+	// Now write all writable data symbols to the data buffer and assign addresses
+	// Data comes after rodata
+	rodataSizeAligned := uint64((uint64(rodataSize) + pageSize - 1) &^ (pageSize - 1))
+	dataAddr := rodataAddr + rodataSizeAligned
+
+	if VerboseMode {
+		fmt.Fprintln(os.Stderr, "-> Writing data symbols")
+	}
+
+	// Get all writable data symbols and write them
+	dataSymbols := fc.eb.DataSection()
+	currentAddr = dataAddr
+	for symbol, value := range dataSymbols {
+		fc.eb.WriteData([]byte(value))
+		fc.eb.DefineAddr(symbol, currentAddr)
+		currentAddr += uint64(len(value))
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "   %s at 0x%x (%d bytes)\n", symbol, fc.eb.consts[symbol].addr, len(value))
+		}
+	}
+
+	dataSize := fc.eb.data.Len()
+
 	// Set lambda function addresses from labels
-	textAddr := pageSize
 	for labelName, offset := range fc.eb.labels {
 		if strings.HasPrefix(labelName, "lambda_") {
-			lambdaAddr := textAddr + uint64(offset)
+			lambdaAddr := textSectAddr + uint64(offset)
 			fc.eb.DefineAddr(labelName, lambdaAddr)
 			if VerboseMode {
 				fmt.Fprintf(os.Stderr, "DEBUG: Setting %s address to 0x%x (offset %d)\n", labelName, lambdaAddr, offset)
@@ -86,7 +125,8 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 	if VerboseMode && len(fc.eb.pcRelocations) > 0 {
 		fmt.Fprintf(os.Stderr, "-> Patching %d PC-relative relocations\n", len(fc.eb.pcRelocations))
 	}
-	fc.eb.PatchPCRelocations(textAddr, rodataAddr, rodataSize)
+	// Note: PatchPCRelocations uses DefineAddr'd addresses from consts, so parameters matter less
+	fc.eb.PatchPCRelocations(textSectAddr, rodataAddr, rodataSize)
 
 	// Use the existing Mach-O writer infrastructure
 	if err := fc.eb.WriteMachO(); err != nil {
@@ -111,6 +151,7 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 		fmt.Fprintf(os.Stderr, "-> Wrote ARM64 Mach-O executable: %s\n", outputPath)
 		fmt.Fprintf(os.Stderr, "   Text size: %d bytes\n", fc.eb.text.Len())
 		fmt.Fprintf(os.Stderr, "   Rodata size: %d bytes\n", rodataSize)
+		fmt.Fprintf(os.Stderr, "   Data size: %d bytes\n", dataSize)
 	}
 
 	return nil

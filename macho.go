@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"strings"
 )
 
 // Mach-O constants
@@ -623,6 +624,37 @@ func (eb *ExecutableBuilder) WriteMachO() error {
 	symtab = append(symtab, mainSym)
 	numDefinedSyms++
 
+	// 2.5. Add internal labels (runtime helpers, etc.) as defined symbols
+	// These are functions like _c67_itoa, _c67_string_concat that are in the text section
+	for labelName, labelOffset := range eb.labels {
+		// Skip lambda functions (they're internal and don't need to be in symbol table)
+		// Skip special labels that aren't function entry points
+		if strings.HasPrefix(labelName, "lambda_") {
+			continue
+		}
+		if strings.HasSuffix(labelName, "_loop") || strings.HasSuffix(labelName, "_end") ||
+			strings.HasSuffix(labelName, "_skip") || strings.HasSuffix(labelName, "_done") {
+			continue
+		}
+
+		// Add as defined symbol
+		strOffset := uint32(strtab.Len())
+		// On Mach-O, C symbols get an extra underscore prepended
+		// Our labels have one underscore (_c67_itoa), but Mach-O needs two (__c67_itoa)
+		strtab.WriteString("_" + labelName)
+		strtab.WriteByte(0)
+
+		sym := Nlist64{
+			N_strx:  strOffset,
+			N_type:  N_SECT | N_EXT, // Defined external symbol in section
+			N_sect:  1,              // Section 1 (__text)
+			N_desc:  0,
+			N_value: textSectAddr + uint64(labelOffset),
+		}
+		symtab = append(symtab, sym)
+		numDefinedSyms++
+	}
+
 	// 3. Add undefined external symbols for dynamic linking (if used)
 	if eb.useDynamicLinking && numImports > 0 {
 		for _, funcName := range eb.neededFunctions {
@@ -784,7 +816,7 @@ func (eb *ExecutableBuilder) WriteMachO() error {
 			dataNSects++
 		}
 
-		dataFileSize := rodataSize
+		dataFileSize := rodataSize + uint64(eb.data.Len())
 		if eb.useDynamicLinking && numImports > 0 {
 			dataFileSize += gotSize
 		}
@@ -1060,32 +1092,55 @@ func (eb *ExecutableBuilder) WriteMachO() error {
 	// Write load commands
 	buf.Write(loadCmdsBuf.Bytes())
 
-	// Patch bl instructions to call stubs (if dynamic linking)
-	if eb.useDynamicLinking && numImports > 0 {
-		textBytes := eb.text.Bytes()
-		for _, patch := range eb.callPatches {
-			// Find which stub this call refers to
-			stubIndex := -1
+	// Patch bl instructions (both external stubs and internal functions)
+	textBytes := eb.text.Bytes()
+	for _, patch := range eb.callPatches {
+		// First check if it's an external function (has a stub)
+		stubIndex := -1
+		if eb.useDynamicLinking && numImports > 0 {
 			for i, funcName := range eb.neededFunctions {
 				if patch.targetName == funcName+"$stub" {
 					stubIndex = i
 					break
 				}
 			}
+		}
 
-			if stubIndex >= 0 {
-				// Calculate stub address
-				thisStubAddr := stubsAddr + uint64(stubIndex*12)
-				// Calculate PC-relative offset from call instruction to stub
+		if stubIndex >= 0 {
+			// External function call - patch to stub
+			thisStubAddr := stubsAddr + uint64(stubIndex*12)
+			callAddr := textSectAddr + uint64(patch.position)
+			offset := int64(thisStubAddr-callAddr) / 4 // ARM64 offset in words
+
+			blInstr := uint32(0x94000000) | (uint32(offset) & 0x03ffffff)
+			textBytes[patch.position] = byte(blInstr)
+			textBytes[patch.position+1] = byte(blInstr >> 8)
+			textBytes[patch.position+2] = byte(blInstr >> 16)
+			textBytes[patch.position+3] = byte(blInstr >> 24)
+		} else {
+			// Internal function call - find the function label
+			funcName := patch.targetName
+			if strings.HasSuffix(funcName, "$stub") {
+				funcName = funcName[:len(funcName)-5] // Remove "$stub" suffix
+			}
+
+			if labelOffset, ok := eb.labels[funcName]; ok {
+				// Patch to internal function
+				targetAddr := textSectAddr + uint64(labelOffset)
 				callAddr := textSectAddr + uint64(patch.position)
-				offset := int64(thisStubAddr-callAddr) / 4 // ARM64 offset in words
+				offset := int64(targetAddr-callAddr) / 4 // ARM64 offset in words
 
-				// Patch bl instruction (opcode 0x94 in bits [31:26])
 				blInstr := uint32(0x94000000) | (uint32(offset) & 0x03ffffff)
 				textBytes[patch.position] = byte(blInstr)
 				textBytes[patch.position+1] = byte(blInstr >> 8)
 				textBytes[patch.position+2] = byte(blInstr >> 16)
 				textBytes[patch.position+3] = byte(blInstr >> 24)
+
+				if VerboseMode {
+					fmt.Fprintf(os.Stderr, "Patched internal call to %s at offset 0x%x\n", funcName, patch.position)
+				}
+			} else if VerboseMode {
+				fmt.Fprintf(os.Stderr, "Warning: Could not find target for call %s\n", patch.targetName)
 			}
 		}
 	}
@@ -1143,9 +1198,14 @@ func (eb *ExecutableBuilder) WriteMachO() error {
 		buf.WriteByte(0)
 	}
 
-	// Write __data section (rodata)
+	// Write __data section (rodata + writable data)
 	if rodataSize > 0 {
 		buf.Write(eb.rodata.Bytes())
+	}
+	// Write writable data (like _itoa_buffer)
+	dataSize := uint64(eb.data.Len())
+	if dataSize > 0 {
+		buf.Write(eb.data.Bytes())
 	}
 
 	// Align to 8 bytes before GOT (GOT entries must be 8-byte aligned)
