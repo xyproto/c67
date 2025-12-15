@@ -135,8 +135,11 @@ func (t *TargetImpl) GetVectorWidth() int {
 	switch t.arch {
 	case ArchX86_64:
 		// x86-64 supports multiple widths: SSE (128), AVX (256), AVX-512 (512)
-		// Return the most commonly available (AVX/256-bit)
-		return 256
+		// Use AVX-512 if explicitly enabled, otherwise use AVX/AVX2
+		if EnableAVX512 {
+			return 512 // AVX-512: 8 doubles per vector (zmm registers)
+		}
+		return 256 // AVX/AVX2: 4 doubles per vector (ymm registers)
 	case ArchARM64:
 		// ARM64 NEON uses 128-bit vectors
 		return 128

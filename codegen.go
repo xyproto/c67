@@ -2353,8 +2353,8 @@ func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bo
 		return false // Must be binary operation
 	}
 
-	// Only support addition for now
-	if binExpr.Operator != "+" {
+	// Support addition, subtraction, and multiplication
+	if binExpr.Operator != "+" && binExpr.Operator != "-" && binExpr.Operator != "*" {
 		return false
 	}
 
@@ -2396,19 +2396,20 @@ func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bo
 	}
 
 	// Emit vectorized code
-	fc.emitVectorizedAddLoop(stmt, rangeExpr, lhsName, leftArray.Name, rightArray.Name, plan.VectorWidth)
+	fc.emitVectorizedBinaryOpLoop(stmt, rangeExpr, lhsName, leftArray.Name, rightArray.Name, 
+		binExpr.Operator, plan.VectorWidth)
 
 	// Successfully vectorized
 	return true
 }
 
-// emitVectorizedAddLoop emits SIMD code for: result[i] = a[i] + b[i]
-func (fc *C67Compiler) emitVectorizedAddLoop(stmt *LoopStmt, rangeExpr *RangeExpr,
-	resultName, leftArrayName, rightArrayName string, vectorWidth int) {
+// emitVectorizedBinaryOpLoop emits SIMD code for: result[i] = a[i] OP b[i]
+func (fc *C67Compiler) emitVectorizedBinaryOpLoop(stmt *LoopStmt, rangeExpr *RangeExpr,
+	resultName, leftArrayName, rightArrayName string, operator string, vectorWidth int) {
 
 	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "SIMD: Emitting vectorized loop: %s = %s[i] + %s[i] (width=%d)\n",
-			resultName, leftArrayName, rightArrayName, vectorWidth)
+		fmt.Fprintf(os.Stderr, "SIMD: Emitting vectorized loop: %s = %s[i] %s %s[i] (width=%d)\n",
+			resultName, leftArrayName, operator, rightArrayName, vectorWidth)
 	}
 
 	// Get array pointers from variables map
@@ -2443,6 +2444,16 @@ func (fc *C67Compiler) emitVectorizedAddLoop(stmt *LoopStmt, rangeExpr *RangeExp
 	fc.out.MovMemToReg("rsi", "rbp", -leftOffset)   // rsi = left array ptr
 	fc.out.MovMemToReg("rdx", "rbp", -rightOffset)  // rdx = right array ptr
 
+	// Determine register type based on vector width
+	var regPrefix string
+	if vectorWidth == 8 {
+		regPrefix = "zmm" // AVX-512: 512-bit (8 doubles)
+	} else if vectorWidth == 4 {
+		regPrefix = "ymm" // AVX/AVX2: 256-bit (4 doubles)
+	} else {
+		regPrefix = "xmm" // SSE: 128-bit (2 doubles)
+	}
+
 	// ===== VECTOR LOOP =====
 	// Process vectorWidth elements per iteration
 	vecLoopStart := fc.eb.text.Len()
@@ -2456,27 +2467,34 @@ func (fc *C67Compiler) emitVectorizedAddLoop(stmt *LoopStmt, rangeExpr *RangeExp
 	cleanupJump := fc.eb.text.Len()
 	fc.out.JumpConditional(JumpLess, 0) // Placeholder, will patch later
 
-	// Load vectorWidth doubles from left array: ymm0 = left[rbx:rbx+vectorWidth]
+	// Load vectorWidth doubles from left array: reg0 = left[rbx:rbx+vectorWidth]
 	// Offset = rbx * 8 (8 bytes per double)
 	fc.out.MovRegToReg("r10", "rbx")
 	fc.out.ShlRegByImm("r10", 3)     // r10 = rbx * 8
 	fc.out.AddRegToReg("r10", "rsi") // r10 = &left[rbx]
-	fc.out.VMovupdLoadFromMem("ymm0", "r10", 0)
+	fc.out.VMovupdLoadFromMem(regPrefix+"0", "r10", 0)
 
-	// Load vectorWidth doubles from right array: ymm1 = right[rbx:rbx+vectorWidth]
+	// Load vectorWidth doubles from right array: reg1 = right[rbx:rbx+vectorWidth]
 	fc.out.MovRegToReg("r10", "rbx")
 	fc.out.ShlRegByImm("r10", 3)
 	fc.out.AddRegToReg("r10", "rdx") // r10 = &right[rbx]
-	fc.out.VMovupdLoadFromMem("ymm1", "r10", 0)
+	fc.out.VMovupdLoadFromMem(regPrefix+"1", "r10", 0)
 
-	// Vector add: ymm0 = ymm0 + ymm1
-	fc.out.VAddPDVectorToVector("ymm0", "ymm0", "ymm1")
+	// Vector operation: reg0 = reg0 OP reg1
+	switch operator {
+	case "+":
+		fc.out.VAddPDVectorToVector(regPrefix+"0", regPrefix+"0", regPrefix+"1")
+	case "-":
+		fc.out.VSubPDVectorToVector(regPrefix+"0", regPrefix+"0", regPrefix+"1")
+	case "*":
+		fc.out.VMulPDVectorToVector(regPrefix+"0", regPrefix+"0", regPrefix+"1")
+	}
 
-	// Store result: result[rbx:rbx+vectorWidth] = ymm0
+	// Store result: result[rbx:rbx+vectorWidth] = reg0
 	fc.out.MovRegToReg("r10", "rbx")
 	fc.out.ShlRegByImm("r10", 3)
 	fc.out.AddRegToReg("r10", "rdi") // r10 = &result[rbx]
-	fc.out.VMovupdStoreToMem("ymm0", "r10", 0)
+	fc.out.VMovupdStoreToMem(regPrefix+"0", "r10", 0)
 
 	// Increment counter by vectorWidth
 	fc.out.AddImmToReg("rbx", int64(vectorWidth))
@@ -2515,8 +2533,15 @@ func (fc *C67Compiler) emitVectorizedAddLoop(stmt *LoopStmt, rangeExpr *RangeExp
 	fc.out.AddRegToReg("r10", "rdx")
 	fc.out.Emit([]byte{0xF2, 0x41, 0x0F, 0x10, 0x0A}) // movsd xmm1, [r10]
 
-	// Scalar add: xmm0 = xmm0 + xmm1
-	fc.out.Emit([]byte{0xF2, 0x0F, 0x58, 0xC1}) // addsd xmm0, xmm1
+	// Scalar operation: xmm0 = xmm0 OP xmm1
+	switch operator {
+	case "+":
+		fc.out.Emit([]byte{0xF2, 0x0F, 0x58, 0xC1}) // addsd xmm0, xmm1
+	case "-":
+		fc.out.Emit([]byte{0xF2, 0x0F, 0x5C, 0xC1}) // subsd xmm0, xmm1
+	case "*":
+		fc.out.Emit([]byte{0xF2, 0x0F, 0x59, 0xC1}) // mulsd xmm0, xmm1
+	}
 
 	// Store result: result[rbx] = xmm0
 	fc.out.MovRegToReg("r10", "rbx")

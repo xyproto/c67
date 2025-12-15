@@ -1180,6 +1180,7 @@ func (eb *ExecutableBuilder) patchDynsymInELF(ds *DynamicSections) {
 // Global flags for controlling output verbosity and dependencies
 var VerboseMode bool
 var QuietMode bool
+var EnableAVX512 bool // Enable AVX-512 vectorization (512-bit vectors, 8 doubles)
 var UpdateDepsFlag bool
 var WPOTimeout float64
 var SingleFlag bool

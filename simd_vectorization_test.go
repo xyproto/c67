@@ -131,3 +131,76 @@ printf("\n")
 		t.Errorf("Vectorized addition failed\nExpected: %s\nGot: %s", expected, output)
 	}
 }
+
+func TestVectorizedArrayMultiplication(t *testing.T) {
+	code := `
+a := [2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0]
+b := [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+result := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+@ i in 0..<8 {
+    result[i] <- a[i] * b[i]
+}
+
+printf("Result: ")
+@ i in 0..<8 {
+    printf("%v ", result[i])
+}
+printf("\n")
+`
+
+	output := compileAndRun(t, code)
+	expected := "Result: 20.000000 30.000000 40.000000 50.000000 60.000000 70.000000 80.000000 90.000000 \n"
+	if output != expected {
+		t.Errorf("Vectorized multiplication failed\nExpected: %s\nGot: %s", expected, output)
+	}
+}
+
+func TestVectorizedArraySubtraction(t *testing.T) {
+	code := `
+a := [100.0, 200.0, 300.0, 400.0, 500.0, 600.0, 700.0, 800.0]
+b := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+result := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+@ i in 0..<8 {
+    result[i] <- a[i] - b[i]
+}
+
+printf("Result: ")
+@ i in 0..<8 {
+    printf("%v ", result[i])
+}
+printf("\n")
+`
+
+	output := compileAndRun(t, code)
+	expected := "Result: 99.000000 198.000000 297.000000 396.000000 495.000000 594.000000 693.000000 792.000000 \n"
+	if output != expected {
+		t.Errorf("Vectorized subtraction failed\nExpected: %s\nGot: %s", expected, output)
+	}
+}
+
+func TestVectorizedWithCleanup(t *testing.T) {
+	// Test with array size that requires cleanup loop (not multiple of vector width)
+	code := `
+a := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0]
+b := [10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0, 10.0]
+result := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+@ i in 0..<10 {
+    result[i] <- a[i] * b[i]
+}
+
+printf("Result: ")
+@ i in 0..<10 {
+    printf("%v ", result[i])
+}
+printf("\n")
+`
+
+	output := compileAndRun(t, code)
+	expected := "Result: 10.000000 20.000000 30.000000 40.000000 50.000000 60.000000 70.000000 80.000000 90.000000 100.000000 \n"
+	if output != expected {
+		t.Errorf("Vectorized with cleanup failed\nExpected: %s\nGot: %s", expected, output)
+	}
+}
