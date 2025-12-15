@@ -338,6 +338,8 @@ func isPowerOfTwo(x float64) bool {
 // - true or x → true, x or true → true (short-circuit)
 // - not(true) → false, not(false) → true (constant folding)
 // - not(comparison) → inverted comparison (e.g., not(x < y) → x >= y)
+// - (not x) and (not y) → not(x or y) (De Morgan's law - saves one not, preserves short-circuit)
+// Note: We don't apply (not x) or (not y) → not(x and y) to preserve short-circuit evaluation
 func strengthReduceExpr(expr Expression) Expression {
 	if expr == nil {
 		return nil
@@ -606,6 +608,23 @@ func strengthReduceExpr(expr Expression) Expression {
 				return &NumberExpr{Value: 1.0}
 			}
 
+			// De Morgan's law: (not x) and (not y) → not(x or y) [saves one not]
+			leftNot, leftIsNot := e.Args[0].(*CallExpr)
+			rightNot, rightIsNot := e.Args[1].(*CallExpr)
+			if leftIsNot && rightIsNot &&
+				leftNot.Function == "not" && len(leftNot.Args) == 1 &&
+				rightNot.Function == "not" && len(rightNot.Args) == 1 {
+				return &CallExpr{
+					Function: "not",
+					Args: []Expression{
+						&CallExpr{
+							Function: "or",
+							Args:     []Expression{leftNot.Args[0], rightNot.Args[0]},
+						},
+					},
+				}
+			}
+
 			// x and x → (x != 0) ? 1.0 : 0.0 which is essentially bool(x)
 			// For simplicity, we don't optimize this case since it requires context
 		}
@@ -629,18 +648,16 @@ func strengthReduceExpr(expr Expression) Expression {
 				return &NumberExpr{Value: 0.0}
 			}
 
+			// Note: We don't apply De Morgan's law for (not x) or (not y) → not(x and y)
+			// because that would prevent short-circuit evaluation.
+			// With (not x) or (not y), if (not x) is true, we don't need to evaluate (not y).
+			// With not(x and y), we must evaluate both x and y before the and operation.
+
 			// x or x → (x != 0) ? 1.0 : 0.0 which is essentially bool(x)
 			// For simplicity, we don't optimize this case since it requires context
 		}
 
 		if e.Function == "not" && len(e.Args) == 1 {
-			// not(not(x)) → bool(x)
-			// Since not(not(x)) should give back the boolean value of x,
-			// and not() always returns 0 or 1, not(not(x)) is x converted to boolean
-			// However, this is NOT the same as x itself - we need to keep the double negation
-			// to preserve the boolean conversion semantics
-			// Actually, let me check if not(not(x)) should equal x in C67...
-
 			// not(constant) → constant
 			if argNum, ok := e.Args[0].(*NumberExpr); ok {
 				if argNum.Value == 0 {

@@ -193,6 +193,28 @@ println(result)
 `,
 			wantStdout: "1\n",
 		},
+		{
+			name: "de morgan not x and not y to not or",
+			code: `
+x := 5
+y := 10
+result := (not(x < 3) and not(y < 8))
+println(result)
+`,
+			wantStdout: "1\n",
+		},
+		{
+			name: "de morgan or not applied for or to preserve short circuit",
+			code: `
+x := 5
+y := 10
+// (not x) or (not y) should NOT be transformed to not(x and y)
+// to preserve short-circuit evaluation
+result := (not(x > 10) or not(y > 20))
+println(result)
+`,
+			wantStdout: "1\n",
+		},
 	}
 
 	for _, tt := range tests {
