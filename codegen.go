@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"unsafe"
+
+	"github.com/xyproto/env/v2"
 )
 
 // codegen.go - C67 Code Generator
@@ -180,7 +182,7 @@ func NewC67Compiler(platform Platform, verbose bool) (*C67Compiler, error) {
 	out := NewOut(eb.target, eb.TextWriter(), eb)
 
 	// Check if debug mode is enabled
-	debugEnabled := os.Getenv("DEBUG") != ""
+	debugEnabled := env.Bool("DEBUG")
 
 	return &C67Compiler{
 		eb:                  eb,
@@ -17716,7 +17718,7 @@ func processImports(program *Program, platform Platform, sourceFilePath string) 
 	program.Statements = append(program.Statements, others...)
 
 	// Debug: print final program
-	if os.Getenv("DEBUG") != "" {
+	if env.Bool("DEBUG") {
 		if VerboseMode {
 			fmt.Fprintf(os.Stderr, "DEBUG processImports: final program after import processing:\n")
 		}
