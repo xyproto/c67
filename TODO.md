@@ -3,6 +3,10 @@
 ## Completed
 - [x] Let `println` handle multiple arguments.
 - [x] Implement peephole optimization patterns (infrastructure exists in optimizer.go).
+  - Added double negation optimization: not(not(x)) -> x != 0
+  - Added De Morgan's law: (not x) and (not y) -> not(x or y)
+  - Added absorption laws: x and (x or y) -> x, x or (x and y) -> x
+  - Added boolean algebra simplifications (and/or with true/false)
 - [x] Add register pressure tracking to identify spill-heavy code
 - [x] Add vector width detection for target platform
 - [x] Add test cases to reproduce the closure capture issue
@@ -17,6 +21,11 @@
 - [x] Add loop analysis to detect vectorization candidates
 - [x] Implement simple loop dependency analysis
 - [x] Auto-vectorize simple parallel loops using existing SIMD infrastructure
+  - Supports +, -, * operations on arrays
+  - AVX2 support (256-bit, 4 doubles per vector)
+  - AVX-512 support (512-bit, 8 doubles per vector) via EnableAVX512 flag
+  - Automatic scalar cleanup loop for non-aligned sizes
+  - Pattern matching for: result[i] = a[i] OP b[i]
 
 ## High Priority - Feasible Sub-tasks
 
