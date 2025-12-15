@@ -1011,6 +1011,14 @@ All bitwise operators use `b` suffix:
 >>b   Arithmetic right shift
 <<<b  Rotate left
 >>>b  Rotate right
+?b    Bit test (tests if bit at position is set, returns 1 or 0)
+```
+
+Example of bit test:
+```c67
+x = 0b10110  // Binary 22
+bit2 = x ?b 2  // Returns 1 (bit 2 is set)
+bit3 = x ?b 3  // Returns 0 (bit 3 is not set)
 ```
 
 ### Assignment Operators

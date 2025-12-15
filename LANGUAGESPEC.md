@@ -201,6 +201,7 @@ All bitwise operations are suffixed with `b` to eliminate ambiguity:
 ```c67
 <<b >>b <<<b >>>b    // Shifts and rotates
 &b |b ^b ~b          // Bitwise logic
+?b                   // Bit test (tests if bit at position is set)
 ```
 
 ### 7. Explicit String Encoding
@@ -3193,6 +3194,7 @@ x &b FLAG     // Clearly bitwise
 x and y       // Clearly logical
 x | transform // Clearly pipe
 x |b mask     // Clearly bitwise
+x ?b 5        // Bit test: is bit 5 set?
 ```
 
 **Benefits:**
@@ -3200,6 +3202,7 @@ x |b mask     // Clearly bitwise
 2. **No precedence confusion:** Different operators, different precedence
 3. **Frees `|` for pipes:** Pipe operator feels natural
 4. **Consistent:** All bitwise ops have `b` suffix
+5. **Efficient bit testing:** `?b` compiles to BT/TEST instructions
 
 ### Design Principles Summary
 
