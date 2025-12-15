@@ -30,8 +30,9 @@
 ## High Priority - Language Features from Design Decisions
 
 ### Operator Implementation
-- [ ] Implement `~` as bitwise NOT operator (in addition to `!`)
-- [ ] Implement `µ` operator for memory ownership/movement
+- [x] Implement `~` as bitwise NOT operator (in addition to `!`)
+- [x] Add `µ` token for memory ownership/movement
+- [ ] Implement `µ` operator semantics for memory ownership/movement
 - [ ] Add `?` suffix for optional types (e.g., `x?: int`)
 - [ ] Implement `.?` safe navigation operator
 - [ ] Add `??` null coalescing operator

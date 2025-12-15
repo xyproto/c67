@@ -5424,6 +5424,22 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 			// Convert index from float64 to integer in rcx
 			fc.out.Cvttsd2si("rcx", "xmm0")
 
+			// BOUNDS CHECKING: Load list length and check bounds
+			fc.out.MovMemToXmm("xmm1", "rbx", 0) // Load count from [rbx]
+			fc.out.Cvttsd2si("rax", "xmm1")      // rax = count
+
+			// Check if index < 0 (negative index)
+			fc.out.CmpRegToImm("rcx", 0)
+			negativeIndexJump := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpLess, 0)
+			negativeIndexEnd := fc.eb.text.Len()
+
+			// Check if index >= count (out of bounds)
+			fc.out.CmpRegToReg("rcx", "rax")
+			outOfBoundsJump := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			outOfBoundsEnd := fc.eb.text.Len()
+
 			// Calculate offset: 16 + index * 16
 			fc.out.ShlImmReg("rcx", 4)    // rcx = index * 16
 			fc.out.AddImmToReg("rcx", 16) // rcx = 16 + index * 16
@@ -5435,6 +5451,21 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 
 			// Load value from [rax]
 			fc.out.MovMemToXmm("xmm0", "rax", 0)
+
+			// Jump to end
+			boundsCheckDoneJump := fc.eb.text.Len()
+			fc.out.JumpUnconditional(0)
+			boundsCheckDoneEnd := fc.eb.text.Len()
+
+			// Out of bounds handler: return 0.0
+			outOfBoundsPos := fc.eb.text.Len()
+			fc.patchJumpImmediate(negativeIndexJump+2, int32(outOfBoundsPos-negativeIndexEnd))
+			fc.patchJumpImmediate(outOfBoundsJump+2, int32(outOfBoundsPos-outOfBoundsEnd))
+			fc.out.XorpdXmm("xmm0", "xmm0") // xmm0 = 0.0
+
+			// Patch done jump
+			boundsCheckDonePos := fc.eb.text.Len()
+			fc.patchJumpImmediate(boundsCheckDoneJump+1, int32(boundsCheckDonePos-boundsCheckDoneEnd))
 		}
 
 		// Clean up stack (remove saved key/index)
