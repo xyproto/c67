@@ -9369,6 +9369,135 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.Ret()
 	}
 
+	// Generate _c67_string_print(string_ptr) - prints string WITHOUT newline
+	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
+	fc.eb.MarkLabel("_c67_string_print")
+
+	if fc.eb.target.OS() == OSWindows {
+		// Windows version: use printf for each character
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
+		fc.out.PushReg("rbx")
+		fc.out.PushReg("r12")
+		fc.out.PushReg("r14")
+
+		// Windows calling convention: first arg is rcx
+		fc.out.MovRegToReg("rbx", "rcx") // rbx = string pointer
+
+		// Get length
+		fc.out.MovMemToXmm("xmm0", "rbx", 0)
+		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+
+		// Loop through characters
+		fc.out.XorRegWithReg("r14", "r14") // r14 = index
+
+		strPrintLoopStart2 := fc.eb.text.Len()
+		fc.out.CmpRegToReg("r14", "r12")
+		strPrintLoopEnd2 := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+		strPrintLoopEndPos2 := fc.eb.text.Len()
+
+		// Calculate offset: 16 + index * 16
+		fc.out.MovRegToReg("rax", "r14")
+		fc.out.ShlImmReg("rax", 4)       // rax = index * 16
+		fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
+		fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
+
+		// Load character code
+		fc.out.MovMemToXmm("xmm0", "rax", 0)
+		fc.out.Cvttsd2si("rdx", "xmm0") // rdx = character code
+
+		// Call putchar via printf
+		charFmtLabel2 := fmt.Sprintf("_c67_char_fmt_%d", fc.stringCounter)
+		fc.stringCounter++
+		fc.eb.Define(charFmtLabel2, "%c\x00")
+
+		fc.out.SubImmFromReg("rsp", 32) // Shadow space
+		fc.out.LeaSymbolToReg("rcx", charFmtLabel2)
+		fc.trackFunctionCall("printf")
+		fc.eb.GenerateCallInstruction("printf")
+		fc.out.AddImmToReg("rsp", 32)
+
+		// Increment and loop
+		fc.out.IncReg("r14")
+		strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
+		fc.out.JumpUnconditional(strPrintBackOffset2)
+
+		// Patch loop end
+		strPrintDonePos2 := fc.eb.text.Len()
+		fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
+
+		// No newline - just return
+		fc.out.PopReg("r14")
+		fc.out.PopReg("r12")
+		fc.out.PopReg("rbx")
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
+	} else {
+		// Unix version: use write syscall
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
+		fc.out.PushReg("rbx")
+		fc.out.PushReg("r12")
+		fc.out.PushReg("r13")
+		fc.out.PushReg("r14")
+
+		fc.out.MovRegToReg("rbx", "rdi") // rbx = string pointer
+
+		// Get length
+		fc.out.MovMemToXmm("xmm0", "rbx", 0)
+		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+
+		// Allocate 1-byte buffer on stack
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToReg("r13", "rsp") // r13 = buffer address
+
+		// Loop through characters
+		fc.out.XorRegWithReg("r14", "r14") // r14 = index
+
+		strPrintLoopStart2 := fc.eb.text.Len()
+		fc.out.CmpRegToReg("r14", "r12")
+		strPrintLoopEnd2 := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+		strPrintLoopEndPos2 := fc.eb.text.Len()
+
+		// Calculate offset: 16 + index * 16
+		fc.out.MovRegToReg("rax", "r14")
+		fc.out.ShlImmReg("rax", 4)
+		fc.out.AddImmToReg("rax", 16)
+		fc.out.AddRegToReg("rax", "rbx")
+
+		// Load character
+		fc.out.MovMemToXmm("xmm0", "rax", 0)
+		fc.out.Cvttsd2si("rax", "xmm0")
+		fc.out.MovRegToMem("rax", "r13", 0)
+
+		// Write syscall
+		fc.out.MovImmToReg("rax", "1")   // syscall: write
+		fc.out.MovImmToReg("rdi", "1")   // fd: stdout
+		fc.out.MovRegToReg("rsi", "r13") // buffer
+		fc.out.MovImmToReg("rdx", "1")   // length: 1
+		fc.out.Syscall()
+
+		// Increment and loop
+		fc.out.IncReg("r14")
+		strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
+		fc.out.JumpUnconditional(strPrintBackOffset2)
+
+		// Patch loop end
+		strPrintDonePos2 := fc.eb.text.Len()
+		fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
+
+		// No newline - just return
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.PopReg("r14")
+		fc.out.PopReg("r13")
+		fc.out.PopReg("r12")
+		fc.out.PopReg("rbx")
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
+	}
+
 	// Generate _c67_itoa for number to string conversion
 	fc.generateItoa()
 
@@ -12406,6 +12535,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 	case "println":
 		// println uses syscalls on Linux, printf on Windows
+		// Supports multiple arguments, separated by spaces
 
 		if len(call.Args) == 0 {
 			// Just print a newline
@@ -12432,229 +12562,259 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			return
 		}
 
-		arg := call.Args[0]
-		argType := fc.getExprType(arg)
+		// Create space label for separating arguments
+		spaceLabel := fmt.Sprintf("println_space_%d", fc.stringCounter)
+		fc.stringCounter++
+		fc.eb.Define(spaceLabel, " ")
 
-		if strExpr, ok := arg.(*StringExpr); ok {
-			// String literal
-			labelName := fmt.Sprintf("str_%d", fc.stringCounter)
-			fc.stringCounter++
-			strWithNewline := strExpr.Value + "\n"
-			fc.eb.Define(labelName, strWithNewline)
+		// Process each argument
+		for argIdx, arg := range call.Args {
+			// Print space before each argument except the first
+			if argIdx > 0 {
+				if fc.eb.target.OS() == OSLinux {
+					fc.out.MovImmToReg("rax", "1") // sys_write
+					fc.out.MovImmToReg("rdi", "1") // stdout
+					fc.out.LeaSymbolToReg("rsi", spaceLabel)
+					fc.out.MovImmToReg("rdx", "1")
+					fc.out.Syscall()
+				} else {
+					fc.eb.Define(spaceLabel+"_z", " \x00")
+					shadowSpace := fc.allocateShadowSpace()
+					fc.out.LeaSymbolToReg(fc.getIntArgReg(0), spaceLabel+"_z")
+					fc.trackFunctionCall("printf")
+					fc.eb.GenerateCallInstruction("printf")
+					fc.deallocateShadowSpace(shadowSpace)
+				}
+			}
 
-			if fc.eb.target.OS() == OSLinux {
-				// Use write syscall
-				fc.out.MovImmToReg("rax", "1") // sys_write
-				fc.out.MovImmToReg("rdi", "1") // stdout
-				fc.out.LeaSymbolToReg("rsi", labelName)
-				fc.out.MovImmToReg("rdx", fmt.Sprintf("%d", len(strWithNewline)))
-				fc.out.Syscall()
-			} else {
-				// Windows - use printf
-				fc.eb.Define(labelName+"_z", strWithNewline+"\x00") // null-terminated
-				fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
+			argType := fc.getExprType(arg)
+
+			if strExpr, ok := arg.(*StringExpr); ok {
+				// String literal
+				labelName := fmt.Sprintf("str_%d", fc.stringCounter)
 				fc.stringCounter++
-				fc.eb.Define(fmtLabel, "%s\x00")
+				fc.eb.Define(labelName, strExpr.Value)
 
+				if fc.eb.target.OS() == OSLinux {
+					// Use write syscall
+					fc.out.MovImmToReg("rax", "1") // sys_write
+					fc.out.MovImmToReg("rdi", "1") // stdout
+					fc.out.LeaSymbolToReg("rsi", labelName)
+					fc.out.MovImmToReg("rdx", fmt.Sprintf("%d", len(strExpr.Value)))
+					fc.out.Syscall()
+				} else {
+					// Windows - use printf
+					fc.eb.Define(labelName+"_z", strExpr.Value+"\x00") // null-terminated
+					fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
+					fc.stringCounter++
+					fc.eb.Define(fmtLabel, "%s\x00")
+
+					shadowSpace := fc.allocateShadowSpace()
+					fc.out.LeaSymbolToReg(fc.getIntArgReg(0), fmtLabel)
+					fc.out.LeaSymbolToReg(fc.getIntArgReg(1), labelName+"_z")
+					fc.trackFunctionCall("printf")
+					fc.eb.GenerateCallInstruction("printf")
+					fc.deallocateShadowSpace(shadowSpace)
+				}
+			} else if argType == "string" {
+				// String variable - call helper (without newline)
+				fc.compileExpression(arg)
+				// xmm0 contains string pointer
+
+				// Convert to integer pointer in first arg register
+				argReg := fc.getIntArgReg(0)
+				fc.out.SubImmFromReg("rsp", 8)
+				fc.out.MovXmmToMem("xmm0", "rsp", 0)
+				fc.out.MovMemToReg(argReg, "rsp", 0)
+				fc.out.AddImmToReg("rsp", 8)
+
+				// Call helper function (syscall-based on Linux, printf-based on Windows)
 				shadowSpace := fc.allocateShadowSpace()
-				fc.out.LeaSymbolToReg(fc.getIntArgReg(0), fmtLabel)
-				fc.out.LeaSymbolToReg(fc.getIntArgReg(1), labelName+"_z")
-				fc.trackFunctionCall("printf")
-				fc.eb.GenerateCallInstruction("printf")
+				if fc.eb.target.OS() == OSLinux {
+					fc.trackFunctionCall("_c67_print_syscall")
+					fc.eb.GenerateCallInstruction("_c67_print_syscall")
+				} else {
+					fc.trackFunctionCall("_c67_string_print")
+					fc.eb.GenerateCallInstruction("_c67_string_print")
+				}
 				fc.deallocateShadowSpace(shadowSpace)
-			}
-			return
-		} else if argType == "string" {
-			// String variable - call helper
-			fc.compileExpression(arg)
-			// xmm0 contains string pointer
+			} else if fstrExpr, ok := arg.(*FStringExpr); ok {
+				// F-string - compile it and print without newline
+				fc.compileExpression(fstrExpr)
+				// xmm0 contains string pointer
 
-			// Convert to integer pointer in first arg register
-			argReg := fc.getIntArgReg(0)
-			fc.out.SubImmFromReg("rsp", 8)
-			fc.out.MovXmmToMem("xmm0", "rsp", 0)
-			fc.out.MovMemToReg(argReg, "rsp", 0)
-			fc.out.AddImmToReg("rsp", 8)
-
-			// Call helper function (syscall-based on Linux, printf-based on Windows)
-			shadowSpace := fc.allocateShadowSpace()
-			if fc.eb.target.OS() == OSLinux {
-				fc.trackFunctionCall("_c67_println_syscall")
-				fc.eb.GenerateCallInstruction("_c67_println_syscall")
-			} else {
-				fc.trackFunctionCall("_c67_string_println")
-				fc.eb.GenerateCallInstruction("_c67_string_println")
-			}
-			fc.deallocateShadowSpace(shadowSpace)
-			return
-		} else if fstrExpr, ok := arg.(*FStringExpr); ok {
-			// F-string - compile it and then println
-			fc.compileExpression(fstrExpr)
-			// xmm0 contains string pointer
-
-			argReg := fc.getIntArgReg(0)
-			fc.out.SubImmFromReg("rsp", 8)
-			fc.out.MovXmmToMem("xmm0", "rsp", 0)
-			fc.out.MovMemToReg(argReg, "rsp", 0)
-			fc.out.AddImmToReg("rsp", 8)
-
-			shadowSpace := fc.allocateShadowSpace()
-			if fc.eb.target.OS() == OSLinux {
-				fc.trackFunctionCall("_c67_println_syscall")
-				fc.eb.GenerateCallInstruction("_c67_println_syscall")
-			} else {
-				fc.trackFunctionCall("_c67_string_println")
-				fc.eb.GenerateCallInstruction("_c67_string_println")
-			}
-			fc.deallocateShadowSpace(shadowSpace)
-			return
-		} else if argType == "list" || argType == "map" {
-			// Print list/map - iterate and use printf for each element
-			// Compile the expression to get map pointer
-			fc.compileExpression(arg)
-			// xmm0 now contains the map pointer as float64
-
-			// Convert map pointer from xmm0 to rax (integer pointer)
-			fc.out.SubImmFromReg("rsp", StackSlotSize)
-			fc.out.MovXmmToMem("xmm0", "rsp", 0)
-			fc.out.MovMemToReg("rax", "rsp", 0)
-			fc.out.AddImmToReg("rsp", StackSlotSize)
-
-			// Save map pointer on the stack (printf clobbers most registers!)
-			// We need: map pointer, length, index - all must survive printf calls
-			fc.out.SubImmFromReg("rsp", 24)     // 3 * 8 bytes for map_ptr, length, index
-			fc.out.MovRegToMem("rax", "rsp", 0) // [rsp+0] = map pointer
-
-			// Get the length of the map (stored at offset 0 as float64)
-			fc.out.MovMemToXmm("xmm0", "rax", 0)
-			fc.out.Cvttsd2si("rcx", "xmm0")     // rcx = length (as integer)
-			fc.out.MovRegToMem("rcx", "rsp", 8) // [rsp+8] = length
-
-			// Initialize index to 0 (iterate forward from 0 to length-1)
-			fc.out.MovImmToReg("rcx", "0")
-			fc.out.MovRegToMem("rcx", "rsp", 16) // [rsp+16] = index = 0
-
-			// Create format string for numbers (use %g for smart formatting)
-			fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
-			fc.stringCounter++
-			fc.eb.Define(fmtLabel, "%g\n\x00")
-
-			// Get current position for loop start
-			loopStartPos := fc.eb.text.Len()
-
-			// Load index and length from stack
-			fc.out.MovMemToReg("rcx", "rsp", 16) // rcx = index
-			fc.out.MovMemToReg("rdx", "rsp", 8)  // rdx = length
-
-			// Check if index >= length (loop exit condition)
-			fc.out.CmpRegToReg("rcx", "rdx") // Compare index with length
-			// Jump to end if index >= length
-			loopEndJumpPos := fc.eb.text.Len()
-			fc.out.JumpConditional(JumpGreaterOrEqual, 0) // Placeholder, will be patched
-
-			// Load map pointer from stack
-			fc.out.MovMemToReg("rax", "rsp", 0) // rax = map pointer
-
-			// Calculate element address: map_base + 8 + (index * 8)
-			// The map structure is: [length (8 bytes)] [element0] [element1] ...
-			fc.out.MovRegToReg("rbx", "rax") // rbx = map base
-			fc.out.AddImmToReg("rbx", 8)     // rbx = map base + 8 (skip length)
-			fc.out.MovRegToReg("rsi", "rcx") // rsi = index
-			fc.out.ShlImmReg("rsi", 3)       // rsi = index * 8
-			fc.out.AddRegToReg("rbx", "rsi") // rbx = element address
-
-			// Load the element value into xmm0
-			fc.out.MovMemToXmm("xmm0", "rbx", 0)
-
-			// Print using printf (printf clobbers rax, rcx, rdx, rsi, rdi, r8-r11)
-			shadowSpace := fc.allocateShadowSpace()
-			fc.out.LeaSymbolToReg(fc.getIntArgReg(0), fmtLabel)
-
-			// Windows requires float args in BOTH integer and XMM registers for variadic functions
-			if fc.eb.target.OS() == OSWindows {
-				// Move xmm0 to xmm1 (2nd parameter position)
-				fc.out.MovXmmToXmm("xmm1", "xmm0")
-				// Also copy to integer register (2nd parameter)
-				fc.out.MovqXmmToReg(fc.getIntArgReg(1), "xmm0")
-			}
-
-			// Set rax = 1 (one vector register used) for variadic printf
-			fc.out.MovImmToReg("rax", "1")
-			fc.trackFunctionCall("printf")
-			fc.eb.GenerateCallInstruction("printf")
-			fc.deallocateShadowSpace(shadowSpace)
-
-			// Increment index on stack
-			fc.out.MovMemToReg("rcx", "rsp", 16) // Load current index
-			fc.out.AddImmToReg("rcx", 1)         // Increment
-			fc.out.MovRegToMem("rcx", "rsp", 16) // Store back
-
-			// Jump back to loop start
-			loopBackJumpPos := fc.eb.text.Len()
-			backOffset := int32(loopStartPos - (loopBackJumpPos + 5)) // 5 bytes for unconditional jump
-			fc.out.JumpUnconditional(backOffset)
-
-			// Patch the loop end jump to point here
-			loopEndPos := fc.eb.text.Len()
-			endOffset := int32(loopEndPos - (loopEndJumpPos + 6)) // 6 bytes for conditional jump
-			fc.patchJumpImmediate(loopEndJumpPos+2, endOffset)
-
-			// Clean up stack
-			fc.out.AddImmToReg("rsp", 24)
-			return
-
-		} else {
-			// Print number using pure assembly (no libc)
-			fc.compileExpression(arg)
-			// xmm0 contains float64 value
-
-			if fc.eb.target.OS() == OSLinux {
-				// Convert to int64 and use _c67_itoa + write syscall
-				fc.out.Cvttsd2si("rdi", "xmm0") // Convert float to int64
-
-				// Allocate stack buffer for number string
-				fc.out.SubImmFromReg("rsp", 32)
-				fc.out.MovRegToReg("r15", "rsp") // Save buffer pointer
-
-				// Call _c67_itoa(rdi=number)
-				fc.trackFunctionCall("_c67_itoa")
-				fc.eb.GenerateCallInstruction("_c67_itoa")
-				// Returns: rsi=string start, rdx=length
-
-				// Write to stdout: write(1, rsi, rdx)
-				fc.out.MovImmToReg("rax", "1") // sys_write
-				fc.out.MovImmToReg("rdi", "1") // stdout
-				// rsi already has buffer pointer
-				// rdx already has length
-				fc.out.Syscall()
-
-				// Write newline
-				newlineLabel := fmt.Sprintf("println_newline_%d", fc.stringCounter)
-				fc.stringCounter++
-				fc.eb.Define(newlineLabel, "\n")
-				fc.out.MovImmToReg("rax", "1") // sys_write
-				fc.out.MovImmToReg("rdi", "1") // stdout
-				fc.out.LeaSymbolToReg("rsi", newlineLabel)
-				fc.out.MovImmToReg("rdx", "1")
-				fc.out.Syscall()
-
-				// Clean up stack
-				fc.out.AddImmToReg("rsp", 32)
-			} else {
-				// Windows - use printf
-				fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
-				fc.stringCounter++
-				fc.eb.Define(fmtLabel, "%g\n\x00")
+				argReg := fc.getIntArgReg(0)
+				fc.out.SubImmFromReg("rsp", 8)
+				fc.out.MovXmmToMem("xmm0", "rsp", 0)
+				fc.out.MovMemToReg(argReg, "rsp", 0)
+				fc.out.AddImmToReg("rsp", 8)
 
 				shadowSpace := fc.allocateShadowSpace()
+				if fc.eb.target.OS() == OSLinux {
+					fc.trackFunctionCall("_c67_print_syscall")
+					fc.eb.GenerateCallInstruction("_c67_print_syscall")
+				} else {
+					fc.trackFunctionCall("_c67_string_print")
+					fc.eb.GenerateCallInstruction("_c67_string_print")
+				}
+				fc.deallocateShadowSpace(shadowSpace)
+			} else if argType == "list" || argType == "map" {
+				// Print list/map - note: for multi-arg println, lists/maps print inline without their usual newlines
+				// Compile the expression to get map pointer
+				fc.compileExpression(arg)
+				// xmm0 now contains the map pointer as float64
+
+				// Convert map pointer from xmm0 to rax (integer pointer)
+				fc.out.SubImmFromReg("rsp", StackSlotSize)
+				fc.out.MovXmmToMem("xmm0", "rsp", 0)
+				fc.out.MovMemToReg("rax", "rsp", 0)
+				fc.out.AddImmToReg("rsp", StackSlotSize)
+
+				// Save map pointer on the stack (printf clobbers most registers!)
+				// We need: map pointer, length, index - all must survive printf calls
+				fc.out.SubImmFromReg("rsp", 24)     // 3 * 8 bytes for map_ptr, length, index
+				fc.out.MovRegToMem("rax", "rsp", 0) // [rsp+0] = map pointer
+
+				// Get the length of the map (stored at offset 0 as float64)
+				fc.out.MovMemToXmm("xmm0", "rax", 0)
+				fc.out.Cvttsd2si("rcx", "xmm0")     // rcx = length (as integer)
+				fc.out.MovRegToMem("rcx", "rsp", 8) // [rsp+8] = length
+
+				// Initialize index to 0 (iterate forward from 0 to length-1)
+				fc.out.MovImmToReg("rcx", "0")
+				fc.out.MovRegToMem("rcx", "rsp", 16) // [rsp+16] = index = 0
+
+				// Create format string for numbers (use %g for smart formatting, no newline in multi-arg mode)
+				fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
+				fc.stringCounter++
+				fc.eb.Define(fmtLabel, "%g\x00")
+
+				// Get current position for loop start
+				loopStartPos := fc.eb.text.Len()
+
+				// Load index and length from stack
+				fc.out.MovMemToReg("rcx", "rsp", 16) // rcx = index
+				fc.out.MovMemToReg("rdx", "rsp", 8)  // rdx = length
+
+				// Check if index >= length (loop exit condition)
+				fc.out.CmpRegToReg("rcx", "rdx") // Compare index with length
+				// Jump to end if index >= length
+				loopEndJumpPos := fc.eb.text.Len()
+				fc.out.JumpConditional(JumpGreaterOrEqual, 0) // Placeholder, will be patched
+
+				// Load map pointer from stack
+				fc.out.MovMemToReg("rax", "rsp", 0) // rax = map pointer
+
+				// Calculate element address: map_base + 8 + (index * 8)
+				// The map structure is: [length (8 bytes)] [element0] [element1] ...
+				fc.out.MovRegToReg("rbx", "rax") // rbx = map base
+				fc.out.AddImmToReg("rbx", 8)     // rbx = map base + 8 (skip length)
+				fc.out.MovRegToReg("rsi", "rcx") // rsi = index
+				fc.out.ShlImmReg("rsi", 3)       // rsi = index * 8
+				fc.out.AddRegToReg("rbx", "rsi") // rbx = element address
+
+				// Load the element value into xmm0
+				fc.out.MovMemToXmm("xmm0", "rbx", 0)
+
+				// Print using printf (printf clobbers rax, rcx, rdx, rsi, rdi, r8-r11)
+				shadowSpace := fc.allocateShadowSpace()
 				fc.out.LeaSymbolToReg(fc.getIntArgReg(0), fmtLabel)
-				fc.out.MovXmmToXmm("xmm1", "xmm0")
-				fc.out.MovqXmmToReg(fc.getIntArgReg(1), "xmm0")
+
+				// Windows requires float args in BOTH integer and XMM registers for variadic functions
+				if fc.eb.target.OS() == OSWindows {
+					// Move xmm0 to xmm1 (2nd parameter position)
+					fc.out.MovXmmToXmm("xmm1", "xmm0")
+					// Also copy to integer register (2nd parameter)
+					fc.out.MovqXmmToReg(fc.getIntArgReg(1), "xmm0")
+				}
+
+				// Set rax = 1 (one vector register used) for variadic printf
 				fc.out.MovImmToReg("rax", "1")
 				fc.trackFunctionCall("printf")
 				fc.eb.GenerateCallInstruction("printf")
 				fc.deallocateShadowSpace(shadowSpace)
+
+				// Increment index on stack
+				fc.out.MovMemToReg("rcx", "rsp", 16) // Load current index
+				fc.out.AddImmToReg("rcx", 1)         // Increment
+				fc.out.MovRegToMem("rcx", "rsp", 16) // Store back
+
+				// Jump back to loop start
+				loopBackJumpPos := fc.eb.text.Len()
+				backOffset := int32(loopStartPos - (loopBackJumpPos + 5)) // 5 bytes for unconditional jump
+				fc.out.JumpUnconditional(backOffset)
+
+				// Patch the loop end jump to point here
+				loopEndPos := fc.eb.text.Len()
+				endOffset := int32(loopEndPos - (loopEndJumpPos + 6)) // 6 bytes for conditional jump
+				fc.patchJumpImmediate(loopEndJumpPos+2, endOffset)
+
+				// Clean up stack
+				fc.out.AddImmToReg("rsp", 24)
+
+			} else {
+				// Print number using pure assembly (no libc) - no newline in multi-arg mode
+				fc.compileExpression(arg)
+				// xmm0 contains float64 value
+
+				if fc.eb.target.OS() == OSLinux {
+					// Convert to int64 and use _c67_itoa + write syscall
+					fc.out.Cvttsd2si("rdi", "xmm0") // Convert float to int64
+
+					// Allocate stack buffer for number string
+					fc.out.SubImmFromReg("rsp", 32)
+					fc.out.MovRegToReg("r15", "rsp") // Save buffer pointer
+
+					// Call _c67_itoa(rdi=number)
+					fc.trackFunctionCall("_c67_itoa")
+					fc.eb.GenerateCallInstruction("_c67_itoa")
+					// Returns: rsi=string start, rdx=length
+
+					// Write to stdout: write(1, rsi, rdx)
+					fc.out.MovImmToReg("rax", "1") // sys_write
+					fc.out.MovImmToReg("rdi", "1") // stdout
+					// rsi already has buffer pointer
+					// rdx already has length
+					fc.out.Syscall()
+
+					// Clean up stack
+					fc.out.AddImmToReg("rsp", 32)
+				} else {
+					// Windows - use printf
+					fmtLabel := fmt.Sprintf("println_fmt_%d", fc.stringCounter)
+					fc.stringCounter++
+					fc.eb.Define(fmtLabel, "%g\x00")
+
+					shadowSpace := fc.allocateShadowSpace()
+					fc.out.LeaSymbolToReg(fc.getIntArgReg(0), fmtLabel)
+					fc.out.MovXmmToXmm("xmm1", "xmm0")
+					fc.out.MovqXmmToReg(fc.getIntArgReg(1), "xmm0")
+					fc.out.MovImmToReg("rax", "1")
+					fc.trackFunctionCall("printf")
+					fc.eb.GenerateCallInstruction("printf")
+					fc.deallocateShadowSpace(shadowSpace)
+				}
 			}
+		}
+
+		// After all arguments, print a newline
+		newlineLabel := fmt.Sprintf("println_newline_%d", fc.stringCounter)
+		fc.stringCounter++
+		fc.eb.Define(newlineLabel, "\n")
+
+		if fc.eb.target.OS() == OSLinux {
+			fc.out.MovImmToReg("rax", "1") // sys_write
+			fc.out.MovImmToReg("rdi", "1") // stdout
+			fc.out.LeaSymbolToReg("rsi", newlineLabel)
+			fc.out.MovImmToReg("rdx", "1")
+			fc.out.Syscall()
+		} else {
+			fc.eb.Define(newlineLabel+"_z", "\n\x00")
+			shadowSpace := fc.allocateShadowSpace()
+			fc.out.LeaSymbolToReg(fc.getIntArgReg(0), newlineLabel+"_z")
+			fc.trackFunctionCall("printf")
+			fc.eb.GenerateCallInstruction("printf")
+			fc.deallocateShadowSpace(shadowSpace)
 		}
 		return
 

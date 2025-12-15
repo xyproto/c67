@@ -1,6 +1,6 @@
 # TODO
 
-- [ ] Let `println` handle multiple arguments.
+- [x] Let `println` handle multiple arguments.
 - [ ] Fix module-level mutable globals in lambdas (closure capture issue at codegen.go:6644).
 - [ ] Implement peephole optimization patterns (infrastructure exists in optimizer.go).
 - [ ] Implement live range analysis for better register allocation.

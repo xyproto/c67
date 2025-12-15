@@ -222,6 +222,24 @@ println(" done")
 `,
 			wantStdout: "Value: 42 done\n",
 		},
+		{
+			name: "println with multiple arguments",
+			code: `
+println("Hello", "World")
+println(1, 2, 3)
+println("x:", 10, "y:", 20)
+`,
+			wantStdout: "Hello World\n1 2 3\nx: 10 y: 20\n",
+		},
+		{
+			name: "println with mixed types",
+			code: `
+x := 42
+y := "answer"
+println(y, "is", x)
+`,
+			wantStdout: "answer is 42\n",
+		},
 	}
 
 	for _, tt := range tests {
