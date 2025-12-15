@@ -2013,6 +2013,14 @@ func (fc *C67Compiler) compileWhileStatement(stmt *WhileStmt) {
 }
 
 func (fc *C67Compiler) compileRangeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) {
+	// SIMD AUTO-VECTORIZATION CHECK
+	// Try to vectorize this loop if possible
+	if fc.tryVectorizeLoop(stmt, rangeExpr) {
+		// Loop was successfully vectorized
+		return
+	}
+	
+	// Fall back to scalar compilation
 	// REGISTER ALLOCATION OPTIMIZATION:
 	// Use rbx for loop counter, r12 for loop limit
 	// This eliminates memory operations in tight loops (30-40% speedup)
@@ -2297,6 +2305,68 @@ func (fc *C67Compiler) compileRangeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) {
 
 	// Pop loop from active stack
 	fc.activeLoops = fc.activeLoops[:len(fc.activeLoops)-1]
+}
+
+// tryVectorizeLoop attempts to vectorize a simple range loop
+// Returns true if loop was vectorized, false if should fall back to scalar
+func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bool {
+	// Only vectorize on x86-64 with AVX support for now
+	if fc.platform.Arch != ArchX86_64 {
+		return false
+	}
+	
+	// Create a Target wrapper from Platform
+	target := &TargetImpl{
+		arch: fc.platform.Arch,
+		os:   fc.platform.OS,
+	}
+	
+	// Create SIMD analyzer and vectorizer
+	analyzer := NewSIMDAnalyzer(target)
+	vectorizer := NewSIMDVectorizer(analyzer, target)
+	
+	// Check if loop can be vectorized
+	if !vectorizer.VectorizeLoop(stmt) {
+		return false
+	}
+	
+	// Get vectorization plan
+	plan := vectorizer.GetVectorizationPlan(stmt)
+	if plan == nil {
+		return false
+	}
+	
+	// Only vectorize simple patterns for now:
+	// @ i in range(n) { result[i] = a[i] + b[i] }
+	if len(stmt.Body) != 1 {
+		return false // Only single-statement loops
+	}
+	
+	assign, ok := stmt.Body[0].(*AssignStmt)
+	if !ok {
+		return false // Must be an assignment
+	}
+	
+	// Check if it's array[i] = expr pattern
+	// For now, just emit a comment showing we detected it
+	// Full implementation would generate vectorized code
+	
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD: Loop at line %d is vectorizable (vector width: %d)\n",
+			0, plan.VectorWidth)
+		fmt.Fprintf(os.Stderr, "SIMD: %s\n", plan.Info.Reason)
+	}
+	
+	// For now, return false to use scalar codegen
+	// TODO: Implement actual vectorized code generation
+	// This would emit:
+	//   1. Vector loop (process VectorWidth elements per iteration)
+	//   2. Cleanup loop (process remaining elements)
+	//   3. Use vmovupd, vaddpd, vmulpd, etc. instructions
+	
+	_ = assign // Use variable to avoid warning
+	
+	return false // Not yet implemented - fall back to scalar
 }
 
 // collectLoopLocalVars scans the loop body and returns a map of variables defined inside it
