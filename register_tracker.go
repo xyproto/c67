@@ -438,3 +438,58 @@ func (rt *RegisterTracker) GetAllocatedCalleeSavedRegs() []string {
 
 	return allocated
 }
+
+// GetRegisterPressure returns current register usage statistics
+type RegisterPressureStats struct {
+	CurrentXmmUsed int
+	MaxXmmUsed     int
+	TotalXmmRegs   int
+	CurrentIntUsed int
+	MaxIntUsed     int
+	XmmPressure    float64 // 0.0 to 1.0
+	IntPressure    float64 // 0.0 to 1.0
+	IsSpillHeavy   bool    // True if pressure > 80%
+}
+
+func (rt *RegisterTracker) GetRegisterPressure() RegisterPressureStats {
+	// Count currently used registers
+	currentXmm := 0
+	for _, inUse := range rt.xmmInUse {
+		if inUse {
+			currentXmm++
+		}
+	}
+
+	currentInt := len(rt.intInUse)
+
+	// Calculate pressure as percentage
+	xmmPressure := float64(currentXmm) / 16.0
+	intPressure := float64(currentInt) / 13.0 // 16 GPRs - 3 reserved (rsp, rbp, r15)
+
+	stats := RegisterPressureStats{
+		CurrentXmmUsed: currentXmm,
+		MaxXmmUsed:     rt.maxXmmUsed,
+		TotalXmmRegs:   16,
+		CurrentIntUsed: currentInt,
+		MaxIntUsed:     rt.maxIntUsed,
+		XmmPressure:    xmmPressure,
+		IntPressure:    intPressure,
+		IsSpillHeavy:   xmmPressure > 0.8 || intPressure > 0.8,
+	}
+
+	return stats
+}
+
+// ReportRegisterPressure prints a summary of register usage (for debugging)
+func (rt *RegisterTracker) ReportRegisterPressure(label string) {
+	stats := rt.GetRegisterPressure()
+	fmt.Printf("=== Register Pressure: %s ===\n", label)
+	fmt.Printf("XMM: %d/%d used (%.1f%%), peak: %d\n",
+		stats.CurrentXmmUsed, stats.TotalXmmRegs, stats.XmmPressure*100, stats.MaxXmmUsed)
+	fmt.Printf("INT: %d/13 used (%.1f%%), peak: %d\n",
+		stats.CurrentIntUsed, stats.IntPressure*100, stats.MaxIntUsed)
+	if stats.IsSpillHeavy {
+		fmt.Println("⚠️  HIGH PRESSURE - Consider register allocation optimization")
+	}
+	fmt.Println()
+}

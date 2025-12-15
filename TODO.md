@@ -20,7 +20,7 @@
 - [ ] Ensure mutable globals are properly referenced through rbp
 
 ### Register Allocation Improvements
-- [ ] Add register pressure tracking to identify spill-heavy code
+- [x] Add register pressure tracking to identify spill-heavy code
 - [ ] Implement simple register use/def analysis
 - [ ] Create data structures for live ranges
 - [ ] Implement live range analysis for better register allocation
