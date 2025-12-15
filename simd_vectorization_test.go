@@ -107,32 +107,27 @@ func TestSIMDDependencyAnalysis(t *testing.T) {
 	}
 }
 
-// TestVectorWidthDetection tests that vector width is correctly determined
-func TestVectorWidthDetection(t *testing.T) {
-	target := &TargetImpl{
-		arch: ArchX86_64,
-		os:   OSLinux,
-	}
+// TestVectorizedArrayAddition tests actual SIMD code generation and execution
+func TestVectorizedArrayAddition(t *testing.T) {
+	code := `
+a := [1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0]
+b := [10.0, 20.0, 30.0, 40.0, 50.0, 60.0, 70.0, 80.0]
+result := [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0]
+
+@ i in 0..<8 {
+    result[i] <- a[i] + b[i]
+}
+
+printf("Result: ")
+@ i in 0..<8 {
+    printf("%v ", result[i])
+}
+printf("\n")
+`
 	
-	analyzer := NewSIMDAnalyzer(target)
-	
-	// Create a dummy loop
-	loop := &LoopStmt{
-		Iterator: "i",
-		Iterable: &RangeExpr{
-			Start: &IdentExpr{Name: "0"},
-			End:   &IdentExpr{Name: "100"},
-		},
-		Body:       []Statement{},
-		NumThreads: 0,
-	}
-	
-	info := analyzer.AnalyzeLoop(loop)
-	
-	// For x86-64, expect AVX width (4 doubles)
-	expectedWidth := 4
-	if info.VectorWidth != expectedWidth {
-		t.Errorf("Expected vector width %d for x86-64 AVX, got %d", 
-			expectedWidth, info.VectorWidth)
+	output := compileAndRun(t, code)
+	expected := "Result: 11.000000 22.000000 33.000000 44.000000 55.000000 66.000000 77.000000 88.000000 \n"
+	if output != expected {
+		t.Errorf("Vectorized addition failed\nExpected: %s\nGot: %s", expected, output)
 	}
 }

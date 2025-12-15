@@ -2395,61 +2395,167 @@ func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bo
 		fmt.Fprintf(os.Stderr, "SIMD: Vector width: %d elements\n", plan.VectorWidth)
 	}
 	
-	// TODO: Emit actual vectorized code
+	// Emit vectorized code
 	fc.emitVectorizedAddLoop(stmt, rangeExpr, lhsName, leftArray.Name, rightArray.Name, plan.VectorWidth)
 	
-	// For now, return false to use scalar codegen
-	// Once emitVectorizedAddLoop is fully implemented, change this to: return true
-	return false
+	// Successfully vectorized
+	return true
 }
 
 // emitVectorizedAddLoop emits SIMD code for: result[i] = a[i] + b[i]
 func (fc *C67Compiler) emitVectorizedAddLoop(stmt *LoopStmt, rangeExpr *RangeExpr, 
 	resultName, leftArrayName, rightArrayName string, vectorWidth int) {
 	
-	// TODO: Implement actual SIMD code generation
-	// Algorithm:
-	//
-	// 1. Setup phase:
-	//    - Load array base pointers into registers (rdi, rsi, rdx)
-	//    - Initialize loop counter (rbx) to range start
-	//    - Load limit (r12) from range end
-	//
-	// 2. Vector loop (process vectorWidth elements):
-	//    .vec_loop:
-	//      - Check: remaining = limit - counter
-	//      - If remaining < vectorWidth, jump to cleanup
-	//      - fc.out.VMovupdLoadFromMem("ymm0", "rsi", counter*8)  // left[i:i+4]
-	//      - fc.out.VMovupdLoadFromMem("ymm1", "rdx", counter*8)  // right[i:i+4]
-	//      - fc.out.VAddpd("ymm0", "ymm0", "ymm1")                // add vectors
-	//      - fc.out.VMovupdStoreToMem("ymm0", "rdi", counter*8)   // result[i:i+4]
-	//      - counter += vectorWidth
-	//      - Jump to .vec_loop
-	//
-	// 3. Cleanup loop (process remaining 0-3 elements):
-	//    .cleanup:
-	//      - If counter >= limit, jump to done
-	//      - Load/add/store single element using scalar SSE
-	//      - counter++
-	//      - Jump to .cleanup
-	//
-	// 4. Cleanup:
-	//    .done:
-	//      - fc.out.VZeroUpper()  // Clean AVX state
-	
-	// For now, this is not implemented - the infrastructure is in place
-	// but we need to integrate properly with the register allocator
-	// and handle the binary code generation for loops correctly
-	
 	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "SIMD: Vector code generation not yet implemented\n")
-		fmt.Fprintf(os.Stderr, "SIMD: Would vectorize: %s = %s[i] + %s[i] (width=%d)\n", 
+		fmt.Fprintf(os.Stderr, "SIMD: Emitting vectorized loop: %s = %s[i] + %s[i] (width=%d)\n", 
 			resultName, leftArrayName, rightArrayName, vectorWidth)
 	}
 	
-	// Fall back to scalar compilation
-	_ = stmt
-	_ = rangeExpr
+	// Get array pointers from variables map
+	// Extract base name from result (might be "result[i]" -> "result")
+	resultBase := strings.Split(resultName, "[")[0]
+	resultOffset, resultExists := fc.variables[resultBase]
+	leftOffset, leftExists := fc.variables[leftArrayName]
+	rightOffset, rightExists := fc.variables[rightArrayName]
+	
+	if !resultExists || !leftExists || !rightExists {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Cannot find array variables in symbol table\n")
+			fmt.Fprintf(os.Stderr, "SIMD:   result=%s exists=%v, left=%s exists=%v, right=%s exists=%v\n",
+				resultBase, resultExists, leftArrayName, leftExists, rightArrayName, rightExists)
+		}
+		return
+	}
+	
+	// Evaluate and store range start and end
+	fc.compileExpression(rangeExpr.Start)
+	fc.out.Cvttsd2si("rbx", "xmm0") // rbx = loop counter (start)
+	
+	fc.compileExpression(rangeExpr.End)
+	fc.out.Cvttsd2si("r12", "xmm0") // r12 = loop limit (end)
+	if rangeExpr.Inclusive {
+		fc.out.IncReg("r12")
+	}
+	
+	// Load array base pointers into registers
+	// Arrays are stored as pointers on the stack
+	fc.out.MovMemToReg("rdi", "rbp", -resultOffset) // rdi = result array ptr
+	fc.out.MovMemToReg("rsi", "rbp", -leftOffset)   // rsi = left array ptr
+	fc.out.MovMemToReg("rdx", "rbp", -rightOffset)  // rdx = right array ptr
+	
+	// ===== VECTOR LOOP =====
+	// Process vectorWidth elements per iteration
+	vecLoopStart := fc.eb.text.Len()
+	
+	// Check if we have at least vectorWidth elements remaining
+	fc.out.MovRegToReg("rax", "r12")
+	fc.out.SubRegFromReg("rax", "rbx") // rax = limit - counter (remaining)
+	fc.out.CmpRegToImm("rax", int64(vectorWidth))
+	
+	// Jump to cleanup if remaining < vectorWidth
+	cleanupJump := fc.eb.text.Len()
+	fc.out.JumpConditional(JumpLess, 0) // Placeholder, will patch later
+	
+	// Load vectorWidth doubles from left array: ymm0 = left[rbx:rbx+vectorWidth]
+	// Offset = rbx * 8 (8 bytes per double)
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3) // r10 = rbx * 8
+	fc.out.AddRegToReg("r10", "rsi") // r10 = &left[rbx]
+	fc.out.VMovupdLoadFromMem("ymm0", "r10", 0)
+	
+	// Load vectorWidth doubles from right array: ymm1 = right[rbx:rbx+vectorWidth]
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3)
+	fc.out.AddRegToReg("r10", "rdx") // r10 = &right[rbx]
+	fc.out.VMovupdLoadFromMem("ymm1", "r10", 0)
+	
+	// Vector add: ymm0 = ymm0 + ymm1
+	fc.out.VAddPDVectorToVector("ymm0", "ymm0", "ymm1")
+	
+	// Store result: result[rbx:rbx+vectorWidth] = ymm0
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3)
+	fc.out.AddRegToReg("r10", "rdi") // r10 = &result[rbx]
+	fc.out.VMovupdStoreToMem("ymm0", "r10", 0)
+	
+	// Increment counter by vectorWidth
+	fc.out.AddImmToReg("rbx", int64(vectorWidth))
+	
+	// Jump back to vector loop start
+	vecLoopEnd := fc.eb.text.Len()
+	offset := vecLoopStart - vecLoopEnd - 2
+	fc.out.JumpUnconditional(int32(offset))
+	
+	// ===== CLEANUP LOOP =====
+	// Process remaining elements one by one
+	cleanupStart := fc.eb.text.Len()
+	
+	// Patch the earlier jump to cleanup
+	cleanupJumpTarget := cleanupStart - cleanupJump - 6
+	fc.patchJump(cleanupJump, cleanupJumpTarget)
+	
+	// Check if counter >= limit
+	cleanupLoopStart := fc.eb.text.Len()
+	fc.out.CmpRegToReg("rbx", "r12")
+	
+	// Jump to done if rbx >= r12
+	doneJump := fc.eb.text.Len()
+	fc.out.JumpConditional(JumpGreaterOrEqual, 0) // Placeholder, will patch later
+	
+	// Load one element from left: xmm0 = left[rbx]
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3)
+	fc.out.AddRegToReg("r10", "rsi")
+	// Load scalar double (use SSE2 movsd)
+	fc.out.Emit([]byte{0xF2, 0x41, 0x0F, 0x10, 0x02}) // movsd xmm0, [r10]
+	
+	// Load one element from right: xmm1 = right[rbx]
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3)
+	fc.out.AddRegToReg("r10", "rdx")
+	fc.out.Emit([]byte{0xF2, 0x41, 0x0F, 0x10, 0x0A}) // movsd xmm1, [r10]
+	
+	// Scalar add: xmm0 = xmm0 + xmm1
+	fc.out.Emit([]byte{0xF2, 0x0F, 0x58, 0xC1}) // addsd xmm0, xmm1
+	
+	// Store result: result[rbx] = xmm0
+	fc.out.MovRegToReg("r10", "rbx")
+	fc.out.ShlRegByImm("r10", 3)
+	fc.out.AddRegToReg("r10", "rdi")
+	fc.out.Emit([]byte{0xF2, 0x41, 0x0F, 0x11, 0x02}) // movsd [r10], xmm0
+	
+	// Increment counter
+	fc.out.IncReg("rbx")
+	
+	// Jump back to cleanup loop start
+	cleanupLoopEnd := fc.eb.text.Len()
+	cleanupOffset := cleanupLoopStart - cleanupLoopEnd - 2
+	fc.out.JumpUnconditional(int32(cleanupOffset))
+	
+	// ===== DONE =====
+	doneStart := fc.eb.text.Len()
+	
+	// Patch the jump to done
+	doneJumpTarget := doneStart - doneJump - 6
+	fc.patchJump(doneJump, doneJumpTarget)
+	
+	// Clean up AVX state
+	fc.out.VZeroUpper()
+	
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD: Successfully emitted vectorized loop\n")
+	}
+}
+
+// patchJump patches a conditional jump with the correct offset
+func (fc *C67Compiler) patchJump(jumpPos int, offset int) {
+	// For conditional jumps, the offset is encoded as a 32-bit signed integer
+	// Get the raw bytes from the buffer
+	textBytes := fc.eb.text.Bytes()
+	textBytes[jumpPos+2] = byte(offset & 0xFF)
+	textBytes[jumpPos+3] = byte((offset >> 8) & 0xFF)
+	textBytes[jumpPos+4] = byte((offset >> 16) & 0xFF)
+	textBytes[jumpPos+5] = byte((offset >> 24) & 0xFF)
 }
 
 // collectLoopLocalVars scans the loop body and returns a map of variables defined inside it
