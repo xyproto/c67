@@ -181,7 +181,7 @@ func ExtractFunctionCode(elfPath string, functionName string) ([]byte, error) {
 	funcOffset := funcSym.Value - textSection.Addr
 	funcSize := funcSym.Size
 
-	if funcOffset < 0 || funcOffset+funcSize > uint64(len(textData)) {
+	if funcOffset+funcSize > uint64(len(textData)) {
 		return nil, fmt.Errorf("function bounds invalid: offset=%d, size=%d, text_size=%d",
 			funcOffset, funcSize, len(textData))
 	}

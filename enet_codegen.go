@@ -3,7 +3,6 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,19 +25,19 @@ func NewENetCodeGenerator(arch string) *ENetCodeGenerator {
 
 // CompileENetFunction compiles C code with ENet and returns machine code
 func (eg *ENetCodeGenerator) CompileENetFunction(functionName, cCode string) ([]byte, error) {
-	tempDir, err := ioutil.TempDir("", "enet_compile_")
+	tempDir, err := os.MkdirTemp("", "enet_compile_")
 	if err != nil {
 		return nil, fmt.Errorf("failed to create temp dir: %v", err)
 	}
 	defer os.RemoveAll(tempDir)
 
 	// Copy enet.h to temp directory
-	enetHeader, err := ioutil.ReadFile("enet.h")
+	enetHeader, err := os.ReadFile("enet.h")
 	if err != nil {
 		return nil, fmt.Errorf("failed to read enet.h: %v", err)
 	}
 	enetHeaderPath := filepath.Join(tempDir, "enet.h")
-	if err := ioutil.WriteFile(enetHeaderPath, enetHeader, 0644); err != nil {
+	if err := os.WriteFile(enetHeaderPath, enetHeader, 0644); err != nil {
 		return nil, fmt.Errorf("failed to write enet.h: %v", err)
 	}
 
@@ -54,7 +53,7 @@ func (eg *ENetCodeGenerator) CompileENetFunction(functionName, cCode string) ([]
 %s
 `, cCode)
 
-	if err := ioutil.WriteFile(cFile, []byte(fullCode), 0644); err != nil {
+	if err := os.WriteFile(cFile, []byte(fullCode), 0644); err != nil {
 		return nil, fmt.Errorf("failed to write C file: %v", err)
 	}
 
@@ -89,7 +88,7 @@ func (eg *ENetCodeGenerator) CompileENetFunction(functionName, cCode string) ([]
 		return nil, fmt.Errorf("extract failed: %v\nOutput: %s", err, string(output))
 	}
 
-	machineCode, err := ioutil.ReadFile(binFile)
+	machineCode, err := os.ReadFile(binFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read machine code: %v", err)
 	}

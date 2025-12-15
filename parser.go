@@ -1531,7 +1531,6 @@ func (p *Parser) parseAssignment() *AssignStmt {
 				default:
 					// Contains expressions, not a pure literal list
 					isLiteral = false
-					break
 				}
 			}
 			if isLiteral {

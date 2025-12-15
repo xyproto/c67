@@ -186,7 +186,7 @@ func resolveWindowsLibrary(libName string) ([]string, error) {
 		}
 	}
 
-	return nil, fmt.Errorf("Windows library not found: %s", libName)
+	return nil, fmt.Errorf("windows library not found: %s", libName)
 }
 
 // isGitURL checks if a string looks like a git repository URL

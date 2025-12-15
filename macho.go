@@ -1172,10 +1172,7 @@ func (eb *ExecutableBuilder) WriteMachO() error {
 			textBytes[patch.position+3] = byte(blInstr >> 24)
 		} else {
 			// Internal function call - find the function label
-			funcName := patch.targetName
-			if strings.HasSuffix(funcName, "$stub") {
-				funcName = funcName[:len(funcName)-5] // Remove "$stub" suffix
-			}
+			funcName := strings.TrimSuffix(patch.targetName, "$stub")
 
 			if labelOffset, ok := eb.labels[funcName]; ok {
 				// Patch to internal function

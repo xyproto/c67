@@ -221,10 +221,7 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 		currentAddr += uint64(len(value))
 	}
 	if fc.eb.rodata.Len() > 0 {
-		previewLen := 32
-		if fc.eb.rodata.Len() < previewLen {
-			previewLen = fc.eb.rodata.Len()
-		}
+		_ = fc.eb.rodata.Len() // Rodata exists but we don't preview it in normal mode
 	}
 
 	// Assign addresses to .data section symbols (writable data like closures)
@@ -252,7 +249,7 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 				fmt.Fprintf(os.Stderr, "Wrote and assigned .data symbol %s to 0x%x (%d bytes)\n", symbol, fc.eb.consts[symbol].addr, len(value))
 			}
 		}
-		currentAddr = dataBaseAddr
+		_ = dataBaseAddr // Mark as used (needed for future logic)
 	}
 
 	// Write complete dynamic ELF with unique PLT functions

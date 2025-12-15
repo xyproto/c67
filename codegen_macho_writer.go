@@ -68,10 +68,7 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 	for _, patch := range fc.eb.callPatches {
 		// patch.targetName is like "malloc$stub" or "printf$stub"
 		// Strip the "$stub" suffix to get the function name
-		funcName := patch.targetName
-		if strings.HasSuffix(funcName, "$stub") {
-			funcName = funcName[:len(funcName)-5] // Remove "$stub"
-		}
+		funcName := strings.TrimSuffix(patch.targetName, "$stub")
 
 		// Skip internal C67 runtime functions (they're defined in the binary)
 		if strings.HasPrefix(funcName, "_c67_") || strings.HasPrefix(funcName, "c67_") {

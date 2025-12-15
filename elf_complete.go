@@ -729,10 +729,7 @@ func (eb *ExecutableBuilder) patchX86PLTCalls(textBytes []byte, ds *DynamicSecti
 			fmt.Fprintf(os.Stderr, "DEBUG patchX86PLTCalls: patch at pos=%d, target=%s\n", patch.position, patch.targetName)
 		}
 		// Extract function name from targetName (strip "$stub" suffix if present)
-		funcName := patch.targetName
-		if strings.HasSuffix(funcName, "$stub") {
-			funcName = funcName[:len(funcName)-5] // Remove "$stub"
-		}
+		funcName := strings.TrimSuffix(patch.targetName, "$stub")
 
 		// Get the CALL instruction position
 		// patch.position was recorded as o.eb.text.Len() AFTER writing 0xE8
@@ -834,10 +831,7 @@ func (eb *ExecutableBuilder) patchARM64PLTCalls(textBytes []byte, ds *DynamicSec
 			fmt.Fprintf(os.Stderr, "DEBUG patchARM64PLTCalls: patch at pos=%d, target=%s\n", patch.position, patch.targetName)
 		}
 		// Extract function name from targetName (strip "$stub" suffix if present)
-		funcName := patch.targetName
-		if strings.HasSuffix(funcName, "$stub") {
-			funcName = funcName[:len(funcName)-5] // Remove "$stub"
-		}
+		funcName := strings.TrimSuffix(patch.targetName, "$stub")
 
 		// Get the BL instruction position
 		// For ARM64, patch.position was recorded as the position where we wrote the BL

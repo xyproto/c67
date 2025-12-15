@@ -116,7 +116,7 @@ func (eb *ExecutableBuilder) CompileDefaultProgram(outputFile string) error {
 					fmt.Fprintf(os.Stderr, "%s = %q at 0x%x\n", symbol, value, dataAddr-uint64(len(value)))
 				}
 			}
-			currentAddr = dataAddr // Update for next section
+			_ = dataAddr // Update for next section (reserved for future use)
 		}
 		if VerboseMode {
 			fmt.Fprintln(os.Stderr, "-> .text")

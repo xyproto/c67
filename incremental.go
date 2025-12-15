@@ -76,7 +76,6 @@ func (is *IncrementalState) InitialCompile(inputPath, outputPath string) error {
 // extractHotFunctions walks the AST and collects hot function definitions (DISABLED - hot keyword removed)
 func (is *IncrementalState) extractHotFunctions(program *Program, filePath string) {
 	// Hot-reloading feature removed from language spec
-	return
 }
 
 // FunctionDef represents a hot function definition

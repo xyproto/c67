@@ -163,7 +163,7 @@ func cmdBuild(ctx *CommandContext, args []string) error {
 		return fmt.Errorf("compilation failed: %v", err)
 	}
 
-	if !ctx.Quiet {
+	if ctx.Verbose {
 		fmt.Printf("Built: %s\n", outputPath)
 	}
 
@@ -338,7 +338,7 @@ func cmdBuildDir(ctx *CommandContext, dirPath string) error {
 		return fmt.Errorf("compilation of %s failed: %v", mainFile, err)
 	}
 
-	if !ctx.Quiet {
+	if ctx.Verbose {
 		fmt.Printf("Built: %s\n", outputPath)
 	}
 

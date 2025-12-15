@@ -164,7 +164,7 @@ func (fc *C67Compiler) writeELFARM64(outputPath string) error {
 					symbol, fc.eb.consts[symbol].addr, len(value))
 			}
 		}
-		currentAddr = dataBaseAddr
+		_ = dataBaseAddr // Mark as used (needed for future logic)
 	}
 
 	// Write complete dynamic ELF with PLT/GOT

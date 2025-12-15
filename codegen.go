@@ -9809,7 +9809,7 @@ func (fc *C67Compiler) compileStoredFunctionCall(call *CallExpr) {
 
 	// If calling a non-lambda value with no args, just return the value
 	if !isLambda && len(call.Args) == 0 {
-		offset, _ := fc.variables[call.Function]
+		offset := fc.variables[call.Function]
 		if VerboseMode {
 			fmt.Fprintf(os.Stderr, "DEBUG compileStoredFunctionCall: returning non-lambda value from offset %d\n", offset)
 		}
@@ -9818,7 +9818,7 @@ func (fc *C67Compiler) compileStoredFunctionCall(call *CallExpr) {
 	}
 
 	// Load closure object pointer from variable
-	offset, _ := fc.variables[call.Function]
+	offset := fc.variables[call.Function]
 	if fc.debug {
 		if VerboseMode {
 			fmt.Fprintf(os.Stderr, "DEBUG compileStoredFunctionCall: calling '%s' at offset %d, args=%d\n", call.Function, offset, len(call.Args))
@@ -17218,10 +17218,8 @@ func collectFunctionCallsWithParams(expr Expression, calls map[string]bool, para
 	case *LambdaExpr:
 		// Create new parameter set for this lambda scope
 		lambdaParams := make(map[string]bool)
-		if params != nil {
-			for k, v := range params {
-				lambdaParams[k] = v
-			}
+		for k, v := range params {
+			lambdaParams[k] = v
 		}
 		for _, param := range e.Params {
 			lambdaParams[param] = true
@@ -17230,10 +17228,8 @@ func collectFunctionCallsWithParams(expr Expression, calls map[string]bool, para
 	case *PatternLambdaExpr:
 		// Pattern lambdas have an implicit parameter (the matched value)
 		lambdaParams := make(map[string]bool)
-		if params != nil {
-			for k, v := range params {
-				lambdaParams[k] = v
-			}
+		for k, v := range params {
+			lambdaParams[k] = v
 		}
 		for _, clause := range e.Clauses {
 			collectFunctionCallsWithParams(clause.Body, calls, lambdaParams)
@@ -17241,10 +17237,8 @@ func collectFunctionCallsWithParams(expr Expression, calls map[string]bool, para
 	case *MultiLambdaExpr:
 		for _, lambda := range e.Lambdas {
 			lambdaParams := make(map[string]bool)
-			if params != nil {
-				for k, v := range params {
-					lambdaParams[k] = v
-				}
+			for k, v := range params {
+				lambdaParams[k] = v
 			}
 			for _, param := range lambda.Params {
 				lambdaParams[param] = true

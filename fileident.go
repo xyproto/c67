@@ -81,7 +81,7 @@ func IdentifyFile(path string) (*FileInfo, error) {
 			switch magicBig {
 			case 0xfeedfacf, 0xcffaedfe, 0xfeedface, 0xcefaedfe:
 				isMachO = true
-				magic = magicBig
+				_ = magicBig // Used for endianness detection
 			}
 		}
 

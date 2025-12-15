@@ -823,7 +823,7 @@ func (x *X86_64CodeGen) MovXmmToMem(src, base string, offset int32) {
 	var xmmNum int
 	fmt.Sscanf(src, "xmm%d", &xmmNum)
 
-	baseReg, _ := x86_64Registers[base]
+	baseReg := x86_64Registers[base]
 
 	x.write(0xF2)
 
@@ -867,7 +867,7 @@ func (x *X86_64CodeGen) MovMemToXmm(dst, base string, offset int32) {
 	var xmmNum int
 	fmt.Sscanf(dst, "xmm%d", &xmmNum)
 
-	baseReg, _ := x86_64Registers[base]
+	baseReg := x86_64Registers[base]
 
 	x.write(0xF2)
 
@@ -989,7 +989,7 @@ func (x *X86_64CodeGen) Cvtsi2sd(dst, src string) {
 }
 
 func (x *X86_64CodeGen) Cvttsd2si(dst, src string) {
-	dstReg, _ := x86_64Registers[dst]
+	dstReg := x86_64Registers[dst]
 
 	var xmmNum int
 	fmt.Sscanf(src, "xmm%d", &xmmNum)
