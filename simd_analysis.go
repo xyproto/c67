@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"os"
 )
 
 // LoopVectorizationInfo contains analysis results for a loop
@@ -64,6 +65,9 @@ func (sa *SIMDAnalyzer) AnalyzeLoop(loop *LoopStmt) *LoopVectorizationInfo {
 	if !canVectorize {
 		info.CanVectorize = false
 		info.Reason = reason
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Cannot vectorize - %s\n", reason)
+		}
 		return info
 	}
 
@@ -71,11 +75,17 @@ func (sa *SIMDAnalyzer) AnalyzeLoop(loop *LoopStmt) *LoopVectorizationInfo {
 	if sa.hasVectorizableOperations(info.Operations) {
 		info.CanVectorize = true
 		info.Reason = "Loop has SIMD-friendly operations and no dependencies"
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Loop CAN be vectorized - %s\n", info.Reason)
+		}
 		return info
 	}
 
 	info.CanVectorize = false
 	info.Reason = "Loop operations are not SIMD-friendly"
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD: Loop cannot be vectorized - %s (ops=%v)\n", info.Reason, info.Operations)
+	}
 	return info
 }
 
@@ -109,6 +119,9 @@ func (sa *SIMDAnalyzer) findOperations(body []Statement) []string {
 		if assign, ok := stmt.(*AssignStmt); ok {
 			// Analyze the expression to find operations
 			ops = append(ops, sa.findExprOps(assign.Value)...)
+		} else if mapUpdate, ok := stmt.(*MapUpdateStmt); ok {
+			// Analyze the value expression for map/array updates
+			ops = append(ops, sa.findExprOps(mapUpdate.Value)...)
 		}
 	}
 

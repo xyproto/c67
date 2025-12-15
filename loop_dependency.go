@@ -1,6 +1,11 @@
 // Completion: 100% - Loop dependency analysis complete
 package main
 
+import (
+	"fmt"
+	"os"
+)
+
 // DependencyType represents the type of dependency between loop iterations
 type DependencyType int
 
@@ -112,20 +117,45 @@ func (lda *LoopDependencyAnalyzer) AnalyzeDependencies(loop *LoopStmt) []Depende
 
 // collectAccesses collects all memory accesses in loop body
 func (lda *LoopDependencyAnalyzer) collectAccesses(body []Statement) {
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD collectAccesses: Processing %d statements\n", len(body))
+	}
 	position := 0
 	for _, stmt := range body {
 		lda.collectStmtAccesses(stmt, position)
 		position++
 	}
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD collectAccesses: After processing, writes=%v, reads=%v\n",
+			lda.writes, lda.reads)
+	}
 }
 
 // collectStmtAccesses collects accesses in a single statement
 func (lda *LoopDependencyAnalyzer) collectStmtAccesses(stmt Statement, position int) {
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD collectStmtAccesses: Statement type=%T\n", stmt)
+	}
 	switch s := stmt.(type) {
 	case *AssignStmt:
 		// This is a write
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD collectStmtAccesses: AssignStmt writing to '%s'\n", s.Name)
+		}
 		lda.writes[s.Name] = append(lda.writes[s.Name], position)
 		// Analyze RHS for reads
+		lda.collectExprReads(s.Value, position)
+	case *MapUpdateStmt:
+		// Array/map update: result[i] <- value
+		// This is a write to the array element
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD collectStmtAccesses: MapUpdateStmt writing to '%s[...]'\n", s.MapName)
+		}
+		// Record write to the base array (not the specific index)
+		// This is a simplification - proper analysis would track individual elements
+		lda.writes[s.MapName] = append(lda.writes[s.MapName], position)
+		// The index and value expressions might have reads
+		lda.collectExprReads(s.Index, position)
 		lda.collectExprReads(s.Value, position)
 	case *ExpressionStmt:
 		// Expression might have reads
@@ -188,6 +218,12 @@ func (lda *LoopDependencyAnalyzer) HasCrossIterationDependency(loop *LoopStmt) b
 // CanVectorize determines if loop can be safely vectorized
 func (lda *LoopDependencyAnalyzer) CanVectorize(loop *LoopStmt) (bool, string) {
 	deps := lda.AnalyzeDependencies(loop)
+
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "SIMD CanVectorize: Found %d dependencies\n", len(deps))
+		fmt.Fprintf(os.Stderr, "SIMD CanVectorize: Writes=%v\n", lda.writes)
+		fmt.Fprintf(os.Stderr, "SIMD CanVectorize: Reads=%v\n", lda.reads)
+	}
 
 	if len(deps) == 0 {
 		return true, "No dependencies detected"

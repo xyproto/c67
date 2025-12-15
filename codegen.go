@@ -2310,51 +2310,79 @@ func (fc *C67Compiler) compileRangeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) {
 // tryVectorizeLoop attempts to vectorize a simple range loop
 // Returns true if loop was vectorized, false if should fall back to scalar
 func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bool {
+	// Check if optimizer already marked this loop as vectorizable
+	if !stmt.Vectorized {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Loop not marked as vectorizable by optimizer\n")
+		}
+		return false
+	}
+
 	// Only vectorize on x86-64 with AVX support for now
 	if fc.platform.Arch != ArchX86_64 {
-		return false
-	}
-
-	// Create a Target wrapper from Platform
-	target := &TargetImpl{
-		arch: fc.platform.Arch,
-		os:   fc.platform.OS,
-	}
-
-	// Create SIMD analyzer and vectorizer
-	analyzer := NewSIMDAnalyzer(target)
-	vectorizer := NewSIMDVectorizer(analyzer, target)
-
-	// Check if loop can be vectorized
-	if !vectorizer.VectorizeLoop(stmt) {
-		return false
-	}
-
-	// Get vectorization plan
-	plan := vectorizer.GetVectorizationPlan(stmt)
-	if plan == nil {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Not x86-64 architecture, skipping vectorization\n")
+		}
 		return false
 	}
 
 	// Only vectorize simple patterns for now:
-	// @ i in range(n) { result[i] = a[i] + b[i] }
+	// @ i in range(n) { result[i] <- a[i] + b[i] }
 	if len(stmt.Body) != 1 {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Loop body has %d statements, need exactly 1\n", len(stmt.Body))
+		}
 		return false // Only single-statement loops
 	}
 
-	assign, ok := stmt.Body[0].(*AssignStmt)
-	if !ok {
-		return false // Must be an assignment
-	}
+	// Handle both AssignStmt and MapUpdateStmt
+	var binExpr *BinaryExpr
+	var lhsName string
 
-	// Check if RHS is a binary expression (a[i] + b[i])
-	binExpr, ok := assign.Value.(*BinaryExpr)
-	if !ok {
-		return false // Must be binary operation
+	if assign, ok := stmt.Body[0].(*AssignStmt); ok {
+		// Check if LHS is also an index expression
+		lhsName = assign.Name
+		if !strings.Contains(lhsName, "[") {
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "SIMD: LHS is not array access: '%s'\n", lhsName)
+			}
+			return false // LHS must be array access
+		}
+
+		// Check if RHS is a binary expression (a[i] + b[i])
+		var ok bool
+		binExpr, ok = assign.Value.(*BinaryExpr)
+		if !ok {
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "SIMD: RHS is not a BinaryExpr: %T\n", assign.Value)
+			}
+			return false // Must be binary operation
+		}
+	} else if mapUpdate, ok := stmt.Body[0].(*MapUpdateStmt); ok {
+		// Array update: result[i] <- value
+		lhsName = mapUpdate.MapName + "[" + stmt.Iterator + "]"
+
+		// Check if value is a binary expression
+		var ok bool
+		binExpr, ok = mapUpdate.Value.(*BinaryExpr)
+		if !ok {
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "SIMD: MapUpdate value is not a BinaryExpr: %T\n", mapUpdate.Value)
+			}
+			return false
+		}
+	} else {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Loop body is not AssignStmt or MapUpdateStmt: %T\n", stmt.Body[0])
+		}
+		return false
 	}
 
 	// Support addition, subtraction, and multiplication
 	if binExpr.Operator != "+" && binExpr.Operator != "-" && binExpr.Operator != "*" {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Unsupported operator: %s\n", binExpr.Operator)
+		}
 		return false
 	}
 
@@ -2362,6 +2390,10 @@ func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bo
 	leftIndex, leftOk := binExpr.Left.(*IndexExpr)
 	rightIndex, rightOk := binExpr.Right.(*IndexExpr)
 	if !leftOk || !rightOk {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Operands are not IndexExpr: left=%T, right=%T\n",
+				binExpr.Left, binExpr.Right)
+		}
 		return false
 	}
 
@@ -2369,35 +2401,41 @@ func (fc *C67Compiler) tryVectorizeLoop(stmt *LoopStmt, rangeExpr *RangeExpr) bo
 	leftIdxIdent, leftIdxOk := leftIndex.Index.(*IdentExpr)
 	rightIdxIdent, rightIdxOk := rightIndex.Index.(*IdentExpr)
 	if !leftIdxOk || !rightIdxOk {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Indices are not IdentExpr: left=%T, right=%T\n",
+				leftIndex.Index, rightIndex.Index)
+		}
 		return false
 	}
 
 	if leftIdxIdent.Name != stmt.Iterator || rightIdxIdent.Name != stmt.Iterator {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Indices don't match iterator '%s': left='%s', right='%s'\n",
+				stmt.Iterator, leftIdxIdent.Name, rightIdxIdent.Name)
+		}
 		return false // Indices must use loop iterator
-	}
-
-	// Check if LHS is also an index expression
-	lhsName := assign.Name
-	if !strings.Contains(lhsName, "[") {
-		return false // LHS must be array access
 	}
 
 	// Extract base array names
 	leftArray, leftArrayOk := leftIndex.List.(*IdentExpr)
 	rightArray, rightArrayOk := rightIndex.List.(*IdentExpr)
 	if !leftArrayOk || !rightArrayOk {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "SIMD: Array bases are not IdentExpr: left=%T, right=%T\n",
+				leftIndex.List, rightIndex.List)
+		}
 		return false
 	}
 
 	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "SIMD: Vectorizing loop - pattern: %s = %s[i] + %s[i]\n",
-			lhsName, leftArray.Name, rightArray.Name)
-		fmt.Fprintf(os.Stderr, "SIMD: Vector width: %d elements\n", plan.VectorWidth)
+		fmt.Fprintf(os.Stderr, "SIMD: Vectorizing loop - pattern: %s = %s[i] %s %s[i]\n",
+			lhsName, leftArray.Name, binExpr.Operator, rightArray.Name)
+		fmt.Fprintf(os.Stderr, "SIMD: Vector width: %d elements\n", stmt.VectorWidth)
 	}
 
-	// Emit vectorized code
-	fc.emitVectorizedBinaryOpLoop(stmt, rangeExpr, lhsName, leftArray.Name, rightArray.Name, 
-		binExpr.Operator, plan.VectorWidth)
+	// Emit vectorized code using the vector width from the optimizer
+	fc.emitVectorizedBinaryOpLoop(stmt, rangeExpr, lhsName, leftArray.Name, rightArray.Name,
+		binExpr.Operator, stmt.VectorWidth)
 
 	// Successfully vectorized
 	return true

@@ -168,20 +168,20 @@ func vectorizeLoops(stmt Statement) Statement {
 		target := NewTarget(ArchX86_64, OSLinux)
 		analyzer := NewSIMDAnalyzer(target)
 		info := analyzer.AnalyzeLoop(s)
-		
+
 		if info.CanVectorize {
 			// Mark loop as vectorized for codegen
 			// We'll check this flag during code generation
 			s.Vectorized = true
 			s.VectorWidth = info.VectorWidth
 		}
-		
+
 		// Recursively process loop body
 		for i, bodyStmt := range s.Body {
 			s.Body[i] = vectorizeLoops(bodyStmt)
 		}
 		return s
-		
+
 	default:
 		return stmt
 	}
