@@ -10394,10 +10394,9 @@ func (fc *C67Compiler) compileDirectCall(call *DirectCallExpr) {
 			}
 			fc.compileExpression(call.Callee)
 			return
-		} else {
-			if VerboseMode {
-				fmt.Fprintf(os.Stderr, "DEBUG: Calling a lambda with 0 args - will dereference and call\n")
-			}
+		}
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "DEBUG: Calling a lambda with 0 args - will dereference and call\n")
 		}
 	}
 
