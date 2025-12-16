@@ -31,6 +31,11 @@ func (eb *ExecutableBuilder) WriteCompleteDynamicELF(ds *DynamicSections, functi
 	rodataSize := eb.rodata.Len()
 	codeSize := eb.text.Len()
 
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "DEBUG: codeSize=%d (0x%x), rodataSize=%d (0x%x)\n",
+			codeSize, codeSize, rodataSize, rodataSize)
+	}
+
 	// Build all dynamic sections first
 	ds.buildSymbolTable()
 	ds.buildHashTable()
@@ -156,9 +161,10 @@ func (eb *ExecutableBuilder) WriteCompleteDynamicELF(ds *DynamicSections, functi
 	currentAddr = (currentAddr + pageSize - 1) & ^uint64(pageSize-1)
 
 	// .text (our code)
-	// Reserve 4 pages (16KB) for text section regardless of current size
-	// This ensures RIP-relative addresses remain valid when code grows
-	textReservedSize := uint64(pageSize * 8) // 32KB reserved
+	// Reserve enough pages for the actual code size, rounded up to page boundary
+	// Add one extra page for safety margin (RIP-relative addressing)
+	actualCodeSize := uint64(codeSize)
+	textReservedSize := ((actualCodeSize + pageSize - 1) & ^uint64(pageSize-1)) + pageSize
 
 	layout["text"] = struct {
 		offset uint64

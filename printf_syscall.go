@@ -17,6 +17,11 @@ func (fc *C67Compiler) GeneratePrintfSyscallRuntime() {
 		return
 	}
 
+	// Only generate if printf or print_syscall is actually used
+	if !fc.usedFunctions["printf"] && !fc.usedFunctions["_c67_print_syscall"] {
+		return
+	}
+
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "Generating syscall-based printf runtime helpers\n")
 	}

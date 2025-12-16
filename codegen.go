@@ -680,8 +680,7 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
 
 	// Arenas will be enabled on-demand when needed (string concat, list operations, etc.)
-	// TODO: Currently always enabled to ensure compatibility
-	fc.usesArenas = true
+	fc.usesArenas = false
 
 	// Check if main() is called at top level (to decide whether to auto-call main)
 	fc.mainCalledAtTopLevel = fc.detectMainCallInTopLevel(program.Statements)
