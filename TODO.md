@@ -1,5 +1,16 @@
 # TODO
 
+## unsafe
+
+Fix this problem:
+
+Unsafe Block Limitation: unsafe blocks allow register assignment (rax <- var).
+ * Without cast (rax <- ptr): The compiler silently ignores the assignment because ptr is not a register.
+ * With cast (rax <- ptr as int64): The compiler performs bit reinterpretation of the float64 variable. Since the pointer address was converted to a double (e.g.
+   0x1234 -> 4660.0), reinterpreting the float bits into an integer yields garbage (IEEE754 representation), not the original address.
+
+Consequence: You cannot perform pointer arithmetic on buffers allocated via c.malloc, nor can you read/write them byte-by-byte using unsafe blocks.
+
 ## High Priority - Executable Size Optimization (for 64k demos)
 
 When running a C67 program with "c67 run program.c67", the command line
