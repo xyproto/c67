@@ -11909,6 +11909,8 @@ func (fc *C67Compiler) compileTailRecursiveCall(call *CallExpr) {
 	}
 
 	// Step 1: Evaluate all arguments and save to temporary stack locations
+	savedTailPosition := fc.inTailPosition
+	fc.inTailPosition = false
 	tempOffsets := make([]int, len(call.Args))
 	for i, arg := range call.Args {
 		fc.compileExpression(arg)
@@ -11916,6 +11918,7 @@ func (fc *C67Compiler) compileTailRecursiveCall(call *CallExpr) {
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 		tempOffsets[i] = fc.stackOffset + 16*(i+1)
 	}
+	fc.inTailPosition = savedTailPosition
 
 	// Step 2: Copy temporary values to parameter locations
 	for i, paramName := range fc.currentLambda.Params {
