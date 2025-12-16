@@ -693,6 +693,7 @@ lambda_body     = [ "->" type_annotation ] ( block | expression [ match_block ] 
 //   (x, y, rest...) -> sum(rest)                  // Variadic parameters (last param with ...)
 //   -> println("hi")                              // No parameters (explicit ->)
 //   x -> { temp = x * 2; temp }                   // Block body
+//   (n) { n * n }                                 // Block body (arrow optional with parens)
 //
 // With type annotations:
 //   (x: num, y: num) -> num { x + y }             // Parameter and return types

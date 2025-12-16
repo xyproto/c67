@@ -4220,11 +4220,13 @@ func (p *Parser) parsePrimary() Expression {
 				return expr
 			}
 
-			// peek should be '->'
-			if p.peek.Type == TOKEN_ARROW {
+			// peek should be '->' or '{'
+			if p.peek.Type == TOKEN_ARROW || p.peek.Type == TOKEN_LBRACE {
 				// It's a lambda!
-				p.nextToken()           // skip ')'
-				p.nextToken()           // skip '->'
+				p.nextToken() // skip ')'
+				if p.current.Type == TOKEN_ARROW {
+					p.nextToken() // skip '->'
+				}
 				p.lambdaParams = params // Store params for parseLambdaBody
 				body := p.parseLambdaBody()
 				p.lambdaParams = nil
