@@ -76,7 +76,7 @@ func (fc *C67Compiler) generateArenaInitLoop() {
 	fc.out.PushReg("rsi")
 	fc.out.MovImmToReg("rdi", "4096")
 	fc.trackFunctionCall("malloc") // Track for PLT
-	fc.out.CallSymbol("c67_arena_create")
+	fc.out.CallSymbol("_c67_arena_create")
 	fc.out.PopReg("rsi")
 	fc.out.PopReg("rdi")
 
@@ -141,8 +141,8 @@ func (fc *C67Compiler) generateFirstMetaArenaAlloc() {
 	fc.out.PushReg("rdi")
 	fc.out.PushReg("rsi")
 	fc.out.MovImmToReg("rdi", "4096")
-	fc.trackFunctionCall("malloc") // Will become c67_arena_create
-	fc.out.CallSymbol("c67_arena_create")
+	fc.trackFunctionCall("malloc") // Will become _c67_arena_create
+	fc.out.CallSymbol("_c67_arena_create")
 	fc.out.PopReg("rsi")
 	fc.out.PopReg("rdi")
 

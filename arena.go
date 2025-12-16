@@ -306,8 +306,8 @@ func (fc *C67Compiler) callArenaAlloc() {
 	fc.out.PopReg("rsi") // rsi = size
 
 	// Call arena allocator (rdi = arena_ptr, rsi = size)
-	fc.trackFunctionCall("c67_arena_alloc")
-	fc.out.CallSymbol("c67_arena_alloc")
+	fc.trackFunctionCall("_c67_arena_alloc")
+	fc.out.CallSymbol("_c67_arena_alloc")
 
 	// Result is in rax
 }

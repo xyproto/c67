@@ -141,32 +141,7 @@ type C67Compiler struct {
 	usesArenaAlloc   bool // Track if arena allocation is explicitly used
 
 	// Runtime function emission flags (all true by default for full compatibility)
-	emitStringConcat    bool // _c67_string_concat
-	emitStringToCstr    bool // c67_string_to_cstr
-	emitCstrToString    bool // cstr_to_c67_string
-	emitStringSlice     bool // c67_slice_string
-	emitStringEq        bool // _c67_string_eq
-	emitStringPrint     bool // _c67_string_print
-	emitStringPrintln   bool // _c67_string_println
-	emitListConcat      bool // _c67_list_concat
-	emitListRepeat      bool // _c67_list_repeat
-	emitListCons        bool // _c67_list_cons
-	emitListHead        bool // _c67_list_head
-	emitListTail        bool // _c67_list_tail
-	emitListLength      bool // _c67_list_length
-	emitListIndex       bool // _c67_list_index
-	emitListUpdate      bool // _c67_list_update
-	emitArenaCreate     bool // c67_arena_create
-	emitArenaAlloc      bool // c67_arena_alloc
-	emitArenaDestroy    bool // c67_arena_destroy
-	emitArenaReset      bool // c67_arena_reset
-	emitArenaEnsure     bool // _c67_arena_ensure_capacity
-	emitCacheLookup     bool // c67_cache_lookup
-	emitCacheInsert     bool // c67_cache_insert
-	emitItoa            bool // _c67_itoa (number to string)
-	emitPrintSyscall    bool // _c67_print_syscall (Linux only)
-	emitPrintlnSyscall  bool // _c67_println_syscall (Linux only)
-	emitPrintfRuntime   bool // Full printf runtime with format strings
+
 }
 
 type FunctionSignature struct {
@@ -260,32 +235,7 @@ func NewC67Compiler(platform Platform, verbose bool) (*C67Compiler, error) {
 		moduleLevelVars:     make(map[string]bool),
 
 		// Initialize all runtime function emission flags to true (full compatibility mode)
-		emitStringConcat:   true,
-		emitStringToCstr:   true,
-		emitCstrToString:   true,
-		emitStringSlice:    true,
-		emitStringEq:       true,
-		emitStringPrint:    true,
-		emitStringPrintln:  true,
-		emitListConcat:     true,
-		emitListRepeat:     true,
-		emitListCons:       true,
-		emitListHead:       true,
-		emitListTail:       true,
-		emitListLength:     true,
-		emitListIndex:      true,
-		emitListUpdate:     true,
-		emitArenaCreate:    true,
-		emitArenaAlloc:     true,
-		emitArenaDestroy:   true,
-		emitArenaReset:     true,
-		emitArenaEnsure:    true,
-		emitCacheLookup:    true,
-		emitCacheInsert:    true,
-		emitItoa:           true,
-		emitPrintSyscall:   true,
-		emitPrintlnSyscall: true,
-		emitPrintfRuntime:  true,
+
 	}, nil
 }
 
@@ -2038,7 +1988,7 @@ func (fc *C67Compiler) compileArenaStmt(stmt *ArenaStmt) {
 	fc.out.LeaSymbolToReg("rbx", "_c67_arena_meta")
 	fc.out.MovMemToReg("rbx", "rbx", 0)      // rbx = meta-arena pointer
 	fc.out.MovMemToReg("rdi", "rbx", offset) // rdi = arena pointer from slot
-	fc.out.CallSymbol("c67_arena_reset")
+	fc.out.CallSymbol("_c67_arena_reset")
 }
 
 func (fc *C67Compiler) compileArenaExpr(expr *ArenaExpr) {
@@ -2091,7 +2041,7 @@ func (fc *C67Compiler) compileArenaExpr(expr *ArenaExpr) {
 	fc.out.LeaSymbolToReg("rbx", "_c67_arena_meta")
 	fc.out.MovMemToReg("rbx", "rbx", 0)
 	fc.out.MovMemToReg("rdi", "rbx", offset)
-	fc.out.CallSymbol("c67_arena_reset")
+	fc.out.CallSymbol("_c67_arena_reset")
 
 	// Result is already in xmm0 from the last statement
 }
@@ -6357,10 +6307,10 @@ func (fc *C67Compiler) compileCastExpr(expr *CastExpr) {
 	case "cstr":
 		// Convert C67 string to C null-terminated string
 		// xmm0 contains pointer to C67 string map
-		// Call runtime function: c67_string_to_cstr(xmm0) -> rax
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		// Call runtime function: _c67_string_to_cstr(xmm0) -> rax
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 		// Convert C string pointer (rax) back to float64 in xmm0
 		fc.out.SubImmFromReg("rsp", StackSlotSize)
 		fc.out.MovRegToMem("rax", "rsp", 0)
@@ -6596,7 +6546,7 @@ func (fc *C67Compiler) compileSliceExpr(expr *SliceExpr) {
 	fc.out.MovXmmToMem("xmm0", "rsp", 0)
 
 	// Stack layout: [collection_ptr][step][start][end] (rsp points to end)
-	// Call runtime function: c67_slice_string(collection_ptr, start, end, step) -> new_collection_ptr
+	// Call runtime function: _c67_slice_string(collection_ptr, start, end, step) -> new_collection_ptr
 
 	// Load step into rcx (arg4)
 	fc.out.MovMemToXmm("xmm0", "rsp", 16)
@@ -6617,7 +6567,7 @@ func (fc *C67Compiler) compileSliceExpr(expr *SliceExpr) {
 	fc.out.AddImmToReg("rsp", 32)
 
 	// Call runtime function
-	fc.out.CallSymbol("c67_slice_string")
+	fc.out.CallSymbol("_c67_slice_string")
 
 	// Result (new string pointer) is in rax, convert to float64 in xmm0
 	fc.out.SubImmFromReg("rsp", StackSlotSize)
@@ -7089,10 +7039,10 @@ func (fc *C67Compiler) compileUnsafeCast(dest string, cast *CastExpr) {
 			if cast.Type == "cstr" || cast.Type == "cstring" {
 				// Convert C67 string to C null-terminated string
 				// xmm0 contains pointer to C67 string map
-				// c67_string_to_cstr is an internal runtime function, not external
-				fc.trackFunctionCall("c67_string_to_cstr")
-				fc.trackFunctionCall("c67_string_to_cstr")
-				fc.out.CallSymbol("c67_string_to_cstr")
+				// _c67_string_to_cstr is an internal runtime function, not external
+				fc.trackFunctionCall("_c67_string_to_cstr")
+				fc.trackFunctionCall("_c67_string_to_cstr")
+				fc.out.CallSymbol("_c67_string_to_cstr")
 				// Result is C string pointer in rax
 				if dest != "rax" {
 					fc.out.MovRegToReg(dest, "rax")
@@ -7404,7 +7354,7 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 			fc.out.ShlRegByImm("rax", 4) // rax = r14 * 16
 			fc.out.AddImmToReg("rax", 8) // rax = 8 + r14 * 16
 
-			// Allocate from arena: c67_arena_alloc(arena_ptr, size)
+			// Allocate from arena: _c67_arena_alloc(arena_ptr, size)
 			// Save r14 (we need it after the call)
 			fc.out.PushReg("r14")
 
@@ -7417,8 +7367,8 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 			fc.out.MovRegToReg("rsi", "rax")
 
 			// Call arena allocator
-			fc.trackFunctionCall("c67_arena_alloc")
-			fc.out.CallSymbol("c67_arena_alloc")
+			fc.trackFunctionCall("_c67_arena_alloc")
+			fc.out.CallSymbol("_c67_arena_alloc")
 
 			// rax now contains pointer to allocated list
 			// Restore r14
@@ -7787,7 +7737,7 @@ func (fc *C67Compiler) patchHotFunctionTable() {
 }
 
 func (fc *C67Compiler) generateCacheLookup() {
-	fc.eb.MarkLabel("c67_cache_lookup")
+	fc.eb.MarkLabel("_c67_cache_lookup")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -7854,7 +7804,7 @@ func (fc *C67Compiler) generateCacheLookup() {
 }
 
 func (fc *C67Compiler) generateCacheInsert() {
-	fc.eb.MarkLabel("c67_cache_insert")
+	fc.eb.MarkLabel("_c67_cache_insert")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -7902,7 +7852,7 @@ func (fc *C67Compiler) generateCacheInsert() {
 }
 
 func (fc *C67Compiler) generateRuntimeHelpers() {
-	// Arena runtime functions are generated inline below (c67_arena_create, alloc, etc)
+	// Arena runtime functions are generated inline below (_c67_arena_create, alloc, etc)
 	// Don't call fc.eb.EmitArenaRuntimeCode() as it's the old stub from main.go
 	// Arena symbols are predeclared earlier in writeELF() to ensure they're available during code generation
 
@@ -8044,13 +7994,13 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.Ret()
 	} // end if _c67_string_concat used
 
-	// Generate c67_string_to_cstr only if used (for printf, f-strings, C FFI)
-	if fc.usedFunctions["c67_string_to_cstr"] || fc.usedFunctions["println"] || fc.usedFunctions["printf"] {
-		// Generate c67_string_to_cstr(c67_string_ptr) -> cstr_ptr
+	// Generate _c67_string_to_cstr only if used (for printf, f-strings, C FFI)
+	if fc.usedFunctions["_c67_string_to_cstr"] || fc.usedFunctions["println"] || fc.usedFunctions["printf"] {
+		// Generate _c67_string_to_cstr(c67_string_ptr) -> cstr_ptr
 		// Converts a C67 string (map format) to a null-terminated C string
 		// Argument: xmm0 = C67 string pointer (as float64)
 		// Returns: rax = C string pointer
-		fc.eb.MarkLabel("c67_string_to_cstr")
+		fc.eb.MarkLabel("_c67_string_to_cstr")
 
 		// Function prologue
 		fc.out.PushReg("rbp")
@@ -8242,15 +8192,15 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		// Function epilogue
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
-	} // end if c67_string_to_cstr used
+	} // end if _c67_string_to_cstr used
 
-	// Generate cstr_to_c67_string only if used (for C FFI string returns)
-	if fc.usedFunctions["cstr_to_c67_string"] {
-		// Generate cstr_to_c67_string(cstr_ptr) -> c67_string_ptr
+	// Generate _c67_cstr_to_string only if used (for C FFI string returns)
+	if fc.usedFunctions["_c67_cstr_to_string"] {
+		// Generate _c67_cstr_to_string(cstr_ptr) -> c67_string_ptr
 		// Converts a null-terminated C string to a C67 string (map format)
 		// Argument: rdi = C string pointer
 		// Returns: xmm0 = C67 string pointer (as float64)
-		fc.eb.MarkLabel("cstr_to_c67_string")
+		fc.eb.MarkLabel("_c67_cstr_to_string")
 
 		// Function prologue
 		fc.out.PushReg("rbp")
@@ -8349,15 +8299,15 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		// Function epilogue
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
-	} // end if cstr_to_c67_string used
+	} // end if _c67_cstr_to_string used
 
-	// Generate c67_slice_string(str_ptr, start, end, step) -> new_str_ptr
+	// Generate _c67_slice_string(str_ptr, start, end, step) -> new_str_ptr
 	// Arguments: rdi = string_ptr, rsi = start_index (int64), rdx = end_index (int64), rcx = step (int64)
 	// Returns: rax = pointer to new sliced string
 	// String format (map): [count (float64)][key0 (float64)][val0 (float64)]...
 	// Note: Currently only step == 1 is fully supported
 
-	fc.eb.MarkLabel("c67_slice_string")
+	fc.eb.MarkLabel("_c67_slice_string")
 
 	// Function prologue
 	fc.out.PushReg("rbp")
@@ -9259,12 +9209,12 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.PopReg("rbp")
 	fc.out.Ret()
 
-	// Generate c67_arena_create(capacity) -> arena_ptr
+	// Generate _c67_arena_create(capacity) -> arena_ptr
 	// Creates a new arena with the specified capacity
 	// Argument: rdi = capacity (int64)
 	// Returns: rax = arena pointer
 	// Arena structure: [buffer_ptr (8)][capacity (8)][offset (8)][alignment (8)] = 32 bytes header
-	fc.eb.MarkLabel("c67_arena_create")
+	fc.eb.MarkLabel("_c67_arena_create")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -9335,12 +9285,12 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.trackFunctionCall("exit")
 	fc.eb.GenerateCallInstruction("exit")
 
-	// Generate c67_arena_alloc(arena_ptr, size) -> allocation_ptr
+	// Generate _c67_arena_alloc(arena_ptr, size) -> allocation_ptr
 	// Allocates memory from the arena using bump allocation with auto-growing
 	// If arena is full, reallocs buffer to 2x size
 	// Arguments: rdi = arena_ptr, rsi = size (int64)
 	// Returns: rax = allocated memory pointer
-	fc.eb.MarkLabel("c67_arena_alloc")
+	fc.eb.MarkLabel("_c67_arena_alloc")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -9540,10 +9490,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.PopReg("rbp")
 	fc.out.Ret()
 
-	// Generate c67_arena_destroy(arena_ptr)
+	// Generate _c67_arena_destroy(arena_ptr)
 	// Frees all memory associated with the arena
 	// Argument: rdi = arena_ptr
-	fc.eb.MarkLabel("c67_arena_destroy")
+	fc.eb.MarkLabel("_c67_arena_destroy")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -9567,10 +9517,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.PopReg("rbp")
 	fc.out.Ret()
 
-	// Generate c67_arena_reset(arena_ptr)
+	// Generate _c67_arena_reset(arena_ptr)
 	// Resets the arena offset to 0, effectively freeing all allocations
 	// Argument: rdi = arena_ptr
-	fc.eb.MarkLabel("c67_arena_reset")
+	fc.eb.MarkLabel("_c67_arena_reset")
 
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -9609,8 +9559,8 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = meta-arena array pointer
 	fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = arena[0] struct pointer
 	fc.out.MovImmToReg("rsi", "16")     // rsi = 16 bytes
-	fc.trackFunctionCall("c67_arena_alloc")
-	fc.eb.GenerateCallInstruction("c67_arena_alloc")
+	fc.trackFunctionCall("_c67_arena_alloc")
+	fc.eb.GenerateCallInstruction("_c67_arena_alloc")
 	// rax now contains pointer to cons cell
 
 	// Write head (element) at [cell+0]
@@ -9837,11 +9787,11 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.AddImmToReg("rax", 8)
 
 	// Allocate from specified arena
-	// Call c67_arena_alloc(rdi=arena_ptr, rsi=size)
+	// Call _c67_arena_alloc(rdi=arena_ptr, rsi=size)
 	fc.out.MovRegToReg("rdi", "r15") // arena ptr in rdi
 	fc.out.MovRegToReg("rsi", "rax") // size in rsi
-	fc.trackFunctionCall("c67_arena_alloc")
-	fc.eb.GenerateCallInstruction("c67_arena_alloc")
+	fc.trackFunctionCall("_c67_arena_alloc")
+	fc.eb.GenerateCallInstruction("_c67_arena_alloc")
 	fc.out.MovRegToReg("r12", "rax") // r12 = new list ptr
 
 	// Write length to new list
@@ -11952,8 +11902,8 @@ func (fc *C67Compiler) compileCachedCall(call *CallExpr) {
 	fc.out.MovMemToXmm("xmm0", "rsp", 0)
 	fc.out.MovqXmmToReg("rsi", "xmm0")
 
-	fc.trackFunctionCall("c67_cache_lookup")
-	fc.out.CallSymbol("c67_cache_lookup")
+	fc.trackFunctionCall("_c67_cache_lookup")
+	fc.out.CallSymbol("_c67_cache_lookup")
 
 	fc.out.CmpRegToImm("rax", 0)
 	cacheHitJump := fc.eb.text.Len()
@@ -11978,8 +11928,8 @@ func (fc *C67Compiler) compileCachedCall(call *CallExpr) {
 	fc.out.MovMemToXmm("xmm0", "rsp", 8)
 	fc.out.MovqXmmToReg("rdx", "xmm0")
 
-	fc.trackFunctionCall("c67_cache_insert")
-	fc.out.CallSymbol("c67_cache_insert")
+	fc.trackFunctionCall("_c67_cache_insert")
+	fc.out.CallSymbol("_c67_cache_insert")
 
 	fc.out.MovMemToXmm("xmm0", "rsp", 8)
 
@@ -12399,14 +12349,14 @@ func (fc *C67Compiler) compileCFunctionCall(libName string, funcName string, arg
 						fc.out.MovMemToReg("rax", "rsp", 0)
 						fc.out.AddImmToReg("rsp", StackSlotSize)
 
-						// Call c67_string_to_cstr(map_ptr) -> char*
+						// Call _c67_string_to_cstr(map_ptr) -> char*
 						fc.out.SubImmFromReg("rsp", StackSlotSize)
 						fc.out.MovRegToMem("rax", "rsp", 0)
 						fc.out.MovMemToReg("rdi", "rsp", 0)
 						fc.out.AddImmToReg("rsp", StackSlotSize)
-						fc.trackFunctionCall("c67_string_to_cstr")
-						fc.trackFunctionCall("c67_string_to_cstr")
-						fc.out.CallSymbol("c67_string_to_cstr")
+						fc.trackFunctionCall("_c67_string_to_cstr")
+						fc.trackFunctionCall("_c67_string_to_cstr")
+						fc.out.CallSymbol("_c67_string_to_cstr")
 						// Result in rax (C string pointer)
 					}
 
@@ -13704,8 +13654,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 				// %s: C67 string -> C string conversion
 				// xmm0 contains pointer to C67 string map [count][key0][val0][key1][val1]...
 				// Call helper function to convert to null-terminated C string
-				fc.trackFunctionCall("c67_string_to_cstr")
-				fc.out.CallSymbol("c67_string_to_cstr")
+				fc.trackFunctionCall("_c67_string_to_cstr")
+				fc.out.CallSymbol("_c67_string_to_cstr")
 				// Result in rax is C string pointer
 				fc.out.MovRegToReg(intRegs[intArgCount], "rax")
 				intArgCount++
@@ -14082,8 +14032,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 						if needsConversion {
 							// Convert C67 string to C string
-							fc.trackFunctionCall("c67_string_to_cstr")
-							fc.eb.GenerateCallInstruction("c67_string_to_cstr")
+							fc.trackFunctionCall("_c67_string_to_cstr")
+							fc.eb.GenerateCallInstruction("_c67_string_to_cstr")
 							if targetReg != "" && strings.HasPrefix(targetReg, "xmm") {
 								fc.out.MovqRegToXmm(targetReg, "rax")
 							} else if targetReg != "" {
@@ -14155,8 +14105,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 							if needsConversion {
 								// Convert C67 string to C string
-								fc.trackFunctionCall("c67_string_to_cstr")
-								fc.eb.GenerateCallInstruction("c67_string_to_cstr")
+								fc.trackFunctionCall("_c67_string_to_cstr")
+								fc.eb.GenerateCallInstruction("_c67_string_to_cstr")
 							} else {
 								// Already a char* from C FFI - just convert from float64 representation to pointer
 								fc.out.MovqXmmToReg("rax", "xmm0")
@@ -14606,7 +14556,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.compileExpression(call.Args[0])
 		// Convert float64 capacity to int64
 		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.CallSymbol("c67_arena_create")
+		fc.out.CallSymbol("_c67_arena_create")
 		// Result in rax, convert to float64
 		fc.out.Cvtsi2sd("xmm0", "rax")
 
@@ -14622,7 +14572,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		// Second arg: size
 		fc.compileExpression(call.Args[1])
 		fc.out.Cvttsd2si("rsi", "xmm0")
-		fc.out.CallSymbol("c67_arena_alloc")
+		fc.out.CallSymbol("_c67_arena_alloc")
 		// Result in rax, convert to float64
 		fc.out.Cvtsi2sd("xmm0", "rax")
 
@@ -14634,7 +14584,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		}
 		fc.compileExpression(call.Args[0])
 		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.CallSymbol("c67_arena_destroy")
+		fc.out.CallSymbol("_c67_arena_destroy")
 		// No return value, set xmm0 to 0
 		fc.out.XorpdXmm("xmm0", "xmm0")
 
@@ -14646,7 +14596,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		}
 		fc.compileExpression(call.Args[0])
 		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.CallSymbol("c67_arena_reset")
+		fc.out.CallSymbol("_c67_arena_reset")
 		// No return value, set xmm0 to 0
 		fc.out.XorpdXmm("xmm0", "xmm0")
 
@@ -15422,7 +15372,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.SubImmFromReg("rsp", StackSlotSize)
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 
-		fc.out.CallSymbol("c67_arena_alloc")
+		fc.out.CallSymbol("_c67_arena_alloc")
 
 		// rax = pointer, load result and store it
 		fc.out.MovMemToXmm("xmm0", "rsp", 0)
@@ -15513,7 +15463,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovMemToReg("rdi", "rdi", 0)
 		fc.out.MovMemToReg("rdi", "rdi", offset)
 		fc.out.MovImmToReg("rsi", "64")
-		fc.out.CallSymbol("c67_arena_alloc")
+		fc.out.CallSymbol("_c67_arena_alloc")
 
 		fc.out.MovRegToReg("rbx", "rax") // save map pointer
 
@@ -15572,7 +15522,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovMemToReg("rdi", "rdi", 0)
 		fc.out.MovMemToReg("rdi", "rdi", offset)
 		fc.out.MovImmToReg("rsi", "64")
-		fc.out.CallSymbol("c67_arena_alloc")
+		fc.out.CallSymbol("_c67_arena_alloc")
 
 		fc.out.MovRegToReg("rbx", "rax") // save map pointer
 
@@ -16063,11 +16013,11 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 		fc.out.MovMemToReg("rdi", "rsp", 0)
 		fc.out.AddImmToReg("rsp", StackSlotSize)
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 
 		// Call strtod(str, NULL) to parse the string
-		// rdi = C string (already in rax from c67_string_to_cstr)
+		// rdi = C string (already in rax from _c67_string_to_cstr)
 		fc.out.MovRegToReg("rdi", "rax")
 		fc.out.XorRegWithReg("rsi", "rsi") // endptr = NULL
 		fc.trackFunctionCall("strtod")
@@ -16500,7 +16450,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.PopReg("rsi") // size in rsi
 
 		// Call arena_alloc (with auto-growing via realloc)
-		fc.out.CallSymbol("c67_arena_alloc")
+		fc.out.CallSymbol("_c67_arena_alloc")
 
 		// DEBUG: Force return a fixed value
 		if false {
@@ -16534,9 +16484,9 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovMemToReg("rdi", "rsp", 0) // C string pointer will be in rax after call
 		fc.out.AddImmToReg("rsp", StackSlotSize)
 
-		// Call c67_string_to_cstr (result in rax)
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		// Call _c67_string_to_cstr (result in rax)
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 
 		// Now rax = C string pointer
 		// Pop flags from stack to rsi
@@ -16578,8 +16528,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.AddImmToReg("rsp", StackSlotSize)
 
 		// Convert to C string
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 
 		// Pop handle to rdi
 		fc.out.Emit([]byte{0x41, 0x58})  // pop r8
@@ -16685,7 +16635,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 		// Convert C string to C67 string
 		// rdi already has lineptr
-		fc.out.CallSymbol("cstr_to_c67_string")
+		fc.out.CallSymbol("_c67_cstr_to_string")
 		// Result in xmm0
 
 		// Save result
@@ -16743,15 +16693,15 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 		fc.out.MovMemToReg("rdi", "rsp", 0)
 		fc.out.AddImmToReg("rsp", StackSlotSize)
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 
 		// Allocate stack frame: 32 bytes (fd, size, buffer, result)
 		fc.out.SubImmFromReg("rsp", 32)
 
 		// syscall open(path, O_RDONLY=0, mode=0)
 		// rax=2 (sys_open), rdi=path, rsi=flags, rdx=mode
-		fc.out.MovRegToReg("rdi", "rax")   // path from c67_string_to_cstr
+		fc.out.MovRegToReg("rdi", "rax")   // path from _c67_string_to_cstr
 		fc.out.XorRegWithReg("rsi", "rsi") // O_RDONLY = 0
 		fc.out.XorRegWithReg("rdx", "rdx") // mode = 0
 		fc.out.MovImmToReg("rax", "2")     // sys_open = 2
@@ -16813,7 +16763,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 		// Convert buffer to C67 string
 		fc.out.MovMemToReg("rdi", "rsp", 16) // buffer from [rsp+16]
-		fc.out.CallSymbol("cstr_to_c67_string")
+		fc.out.CallSymbol("_c67_cstr_to_string")
 		// Result in xmm0
 
 		// Save result at [rsp+24]
@@ -16863,8 +16813,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 		fc.out.MovMemToReg("rdi", "rsp", 0)
 		fc.out.AddImmToReg("rsp", StackSlotSize)
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 		fc.out.PushReg("rax") // Save content C string
 
 		// Evaluate and convert path
@@ -16873,8 +16823,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.out.MovXmmToMem("xmm0", "rsp", 0)
 		fc.out.MovMemToReg("rdi", "rsp", 0)
 		fc.out.AddImmToReg("rsp", StackSlotSize)
-		fc.trackFunctionCall("c67_string_to_cstr")
-		fc.out.CallSymbol("c67_string_to_cstr")
+		fc.trackFunctionCall("_c67_string_to_cstr")
+		fc.out.CallSymbol("_c67_string_to_cstr")
 
 		// Open file: fopen(path, "w")
 		fc.out.MovRegToReg("rdi", "rax") // path

@@ -943,7 +943,7 @@ func (eb *ExecutableBuilder) EmitArenaRuntimeCode() {
 	// Argument: rdi = capacity
 	// Returns: rax = arena_ptr (pointer to 32-byte arena structure)
 	// Arena structure: [buffer_ptr, capacity, offset, alignment] = 32 bytes
-	eb.MarkLabel("c67_arena_create")
+	eb.MarkLabel("_c67_arena_create")
 	out.PushReg("rbp")
 	out.MovRegToReg("rbp", "rsp")
 	out.PushReg("rbx")
@@ -1005,7 +1005,7 @@ func (eb *ExecutableBuilder) EmitArenaRuntimeCode() {
 
 	// c67_arena_destroy(arena_ptr) - destroys an arena
 	// Argument: rdi = arena_ptr
-	eb.MarkLabel("c67_arena_destroy")
+	eb.MarkLabel("_c67_arena_destroy")
 	out.PushReg("rbp")
 	out.MovRegToReg("rbp", "rsp")
 	out.PushReg("rbx")

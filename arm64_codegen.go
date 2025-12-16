@@ -5283,7 +5283,7 @@ func (acg *ARM64CodeGen) generateArenaRuntimeARM64() error {
 	// Creates a new arena with the specified capacity
 	// Argument: x0 = capacity
 	// Returns: x0 = arena pointer
-	acg.eb.MarkLabel("c67_arena_create")
+	acg.eb.MarkLabel("_c67_arena_create")
 	// Save link register
 	// stp x29, x30, [sp, #-16]!
 	acg.out.out.writer.WriteBytes([]byte{0xfd, 0x7b, 0xbf, 0xa9})
@@ -5306,7 +5306,7 @@ func (acg *ARM64CodeGen) generateArenaRuntimeARM64() error {
 	// Allocates memory from the arena
 	// Arguments: x0 = arena_ptr, x1 = size
 	// Returns: x0 = allocated memory pointer
-	acg.eb.MarkLabel("c67_arena_alloc")
+	acg.eb.MarkLabel("_c67_arena_alloc")
 	// Save link register
 	// stp x29, x30, [sp, #-16]!
 	acg.out.out.writer.WriteBytes([]byte{0xfd, 0x7b, 0xbf, 0xa9})
@@ -5327,7 +5327,7 @@ func (acg *ARM64CodeGen) generateArenaRuntimeARM64() error {
 	// c67_arena_reset(arena_ptr)
 	// Resets the arena offset to 0
 	// Argument: x0 = arena_ptr
-	acg.eb.MarkLabel("c67_arena_reset")
+	acg.eb.MarkLabel("_c67_arena_reset")
 	// No-op for now
 	if err := acg.out.Return("x30"); err != nil {
 		return err
