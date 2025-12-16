@@ -5,9 +5,12 @@
 Fix this problem:
 
 Unsafe Block Limitation: unsafe blocks allow register assignment (rax <- var).
- * Without cast (rax <- ptr): The compiler silently ignores the assignment because ptr is not a register.
- * With cast (rax <- ptr as int64): The compiler performs bit reinterpretation of the float64 variable. Since the pointer address was converted to a double (e.g.
-   0x1234 -> 4660.0), reinterpreting the float bits into an integer yields garbage (IEEE754 representation), not the original address.
+* Without cast (rax <- ptr): The compiler silently ignores the assignment because ptr is not a register.
+* With cast (rax <- ptr as int64): The compiler performs bit reinterpretation of the float64 variable. Since the pointer address was converted to a double (e.g.
+  0x1234 -> 4660.0), reinterpreting the float bits into an integer yields garbage (IEEE754 representation), not the original address.
+* rax <- ptr is silently ignored by the compiler because ptr is not a register.
+* rax <- ptr as int64 performs bit reinterpretation, loading the IEEE 754 float bits instead of the address value. This results in a garbage address and segfaults.
+* Impact: You cannot iterate over a file buffer (e.g., source code) byte-by-byte, which is essential for a lexer/parser.
 
 Consequence: You cannot perform pointer arithmetic on buffers allocated via c.malloc, nor can you read/write them byte-by-byte using unsafe blocks.
 
