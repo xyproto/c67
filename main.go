@@ -1457,6 +1457,12 @@ func main() {
 				fmt.Fprintf(os.Stderr, "source file: %s\n", file)
 			}
 
+			// Check if file exists
+			if _, err := os.Stat(file); os.IsNotExist(err) {
+				fmt.Fprintf(os.Stderr, "Error: file not found: %s\n", file)
+				os.Exit(1)
+			}
+
 			// Check if this is a C67 source file
 			if strings.HasSuffix(file, ".c67") {
 				if VerboseMode {
