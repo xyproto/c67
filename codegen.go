@@ -4005,6 +4005,7 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 			fc.out.SubImmFromReg("rsp", StackSlotSize)
 
 			// Call _c67_string_concat(rdi, rsi) -> rax
+			fc.trackFunctionCall("_c67_string_concat")
 			fc.out.CallSymbol("_c67_string_concat")
 
 			// Restore stack alignment
@@ -4498,6 +4499,7 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 				fc.out.SubImmFromReg("rsp", StackSlotSize)
 
 				// Call the helper function (direct call, not through PLT)
+				fc.trackFunctionCall("_c67_string_concat")
 				fc.out.CallSymbol("_c67_string_concat")
 
 				// Restore stack alignment
