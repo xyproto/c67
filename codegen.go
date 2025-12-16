@@ -19025,8 +19025,8 @@ func CompileC67WithOptions(inputPath string, outputPath string, platform Platfor
 		return fmt.Errorf("compilation failed: %v", err)
 	}
 
-	// Output optimization summary (unless in quiet mode)
-	if !QuietMode {
+	// Output optimization summary in verbose mode
+	if VerboseMode {
 		totalCalls := compiler.tailCallsOptimized + compiler.nonTailCalls
 		if totalCalls > 0 {
 			fmt.Printf("Tail call optimization: %d/%d recursive calls optimized",
