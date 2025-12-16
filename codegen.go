@@ -622,7 +622,7 @@ func (fc *C67Compiler) collectAllFunctions(program *Program) {
 				if VerboseMode {
 					fmt.Fprintf(os.Stderr, "   Marked function for forward reference: %s\n", assign.Name)
 				}
-				
+
 				if fc.forwardFunctions == nil {
 					fc.forwardFunctions = make(map[string]bool)
 				}
@@ -637,7 +637,7 @@ func (fc *C67Compiler) collectAllFunctions(program *Program) {
 func (fc *C67Compiler) reorderStatementsForForwardRefs(statements []Statement) []Statement {
 	var functionDefs []Statement
 	var otherStmts []Statement
-	
+
 	for _, stmt := range statements {
 		if assign, ok := stmt.(*AssignStmt); ok {
 			// Check if this is a function definition
@@ -649,16 +649,16 @@ func (fc *C67Compiler) reorderStatementsForForwardRefs(statements []Statement) [
 		// Not a function definition
 		otherStmts = append(otherStmts, stmt)
 	}
-	
+
 	// Return functions first, then other statements
 	result := make([]Statement, 0, len(statements))
 	result = append(result, functionDefs...)
 	result = append(result, otherStmts...)
-	
+
 	if VerboseMode && len(functionDefs) > 0 {
 		fmt.Fprintf(os.Stderr, "-> Reordered %d function definitions to the top\n", len(functionDefs))
 	}
-	
+
 	return result
 }
 
@@ -694,7 +694,7 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	// Pre-pass: Collect all function definitions to enable forward references
 	// This allows functions to be called before they're defined in the source
 	fc.collectAllFunctions(program)
-	
+
 	// Reorder statements to put function definitions first
 	// This ensures all functions are defined before being called
 	program.Statements = fc.reorderStatementsForForwardRefs(program.Statements)
@@ -12615,7 +12615,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 	if !isBuiltinOp {
 		_, isVariable := fc.variables[call.Function]
 		_, isForwardRef := fc.forwardFunctions[call.Function]
-		
+
 		if isForwardRef && !isVariable {
 			// Forward reference - function not yet defined, but will be
 			// Use direct call by label (like compileLambdaDirectCall)
@@ -12625,7 +12625,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			fc.compileLambdaDirectCall(call)
 			return
 		}
-		
+
 		if isVariable {
 			if VerboseMode {
 				fmt.Fprintf(os.Stderr, "DEBUG compileCall: taking compileStoredFunctionCall path\n")
@@ -18177,7 +18177,7 @@ func collectDefinedFromExpr(expr Expression, defined map[string]bool) {
 func checkForwardReferences(program *Program) []string {
 	var errors []string
 	defined := make(map[string]bool)
-	
+
 	// Builtins are always available
 	builtins := map[string]bool{
 		"printf": true, "exit": true, "syscall": true,
@@ -18195,8 +18195,8 @@ func checkForwardReferences(program *Program) []string {
 		"append": true, "head": true, "tail": true, "pop": true,
 		"error": true, "is_nan": true,
 		"_error_code_extract": true,
-		"printa": true,
-		"alloc": true, "free": true,
+		"printa":              true,
+		"alloc":               true, "free": true,
 		"dlopen": true, "dlsym": true, "dlclose": true,
 		"read_i8": true, "read_u8": true, "read_i16": true, "read_u16": true,
 		"read_i32": true, "read_u32": true, "read_i64": true, "read_u64": true, "read_f64": true,
@@ -18204,12 +18204,12 @@ func checkForwardReferences(program *Program) []string {
 		"write_i32": true, "write_u32": true, "write_i64": true, "write_u64": true, "write_f32": true, "write_f64": true,
 		"call": true, "arena_create": true, "arena_alloc": true, "arena_reset": true, "arena_destroy": true,
 	}
-	
+
 	// Mark builtins as defined
 	for k := range builtins {
 		defined[k] = true
 	}
-	
+
 	// Collect C imports
 	cImports := make(map[string]bool)
 	for _, stmt := range program.Statements {
@@ -18217,10 +18217,10 @@ func checkForwardReferences(program *Program) []string {
 			cImports[cImp.Alias] = true
 		}
 	}
-	
+
 	// Pre-scan to find all functions that WILL BE defined (anywhere in the program)
 	allDefined := collectDefinedFunctions(program)
-	
+
 	// Process statements in order
 	for _, stmt := range program.Statements {
 		// Only check top-level calls (not calls inside lambda bodies which execute later)
@@ -18232,13 +18232,13 @@ func checkForwardReferences(program *Program) []string {
 		}
 		// Note: We DON'T check calls inside AssignStmt values because those are lambda bodies
 		// Lambda bodies execute later when the function is called, not when it's defined
-		
+
 		// Get the name being defined in this statement (for recursion detection)
 		var definingName string
 		if assign, ok := stmt.(*AssignStmt); ok {
 			definingName = assign.Name
 		}
-		
+
 		for funcName := range calls {
 			// Skip if it's a C import (namespace.function)
 			if strings.Contains(funcName, ".") {
@@ -18247,7 +18247,7 @@ func checkForwardReferences(program *Program) []string {
 					continue
 				}
 			}
-			
+
 			// Skip builtin operators
 			if funcName == "+" || funcName == "-" || funcName == "*" || funcName == "/" ||
 				funcName == "mod" || funcName == "%" ||
@@ -18258,12 +18258,12 @@ func checkForwardReferences(program *Program) []string {
 				funcName == "<<" || funcName == ">>" {
 				continue
 			}
-			
+
 			// Skip if this is a recursive call (function calling itself in its own definition)
 			if funcName == definingName {
 				continue
 			}
-			
+
 			// Only flag as forward reference if:
 			// 1. Not currently defined
 			// 2. WILL BE defined later (exists in allDefined)
@@ -18271,13 +18271,13 @@ func checkForwardReferences(program *Program) []string {
 				errors = append(errors, fmt.Sprintf("  Function '%s' called before it is defined", funcName))
 			}
 		}
-		
+
 		// Now mark new definitions from this statement
 		if assign, ok := stmt.(*AssignStmt); ok {
 			defined[assign.Name] = true
 		}
 	}
-	
+
 	return errors
 }
 

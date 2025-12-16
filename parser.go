@@ -4125,9 +4125,9 @@ func (p *Parser) parsePrimary() Expression {
 		// Check for empty parameter list: () -> or () {
 		if p.current.Type == TOKEN_RPAREN {
 			if p.peek.Type == TOKEN_ARROW || p.peek.Type == TOKEN_LBRACE {
-				p.nextToken()               // skip ')'
+				p.nextToken() // skip ')'
 				if p.current.Type == TOKEN_ARROW {
-					p.nextToken()           // skip '->'
+					p.nextToken() // skip '->'
 				}
 				p.lambdaParams = []string{} // No parameters
 				body := p.parseLambdaBody()

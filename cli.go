@@ -113,7 +113,7 @@ func cmdBuild(ctx *CommandContext, args []string) error {
 	// Collect input files (all non-flag arguments)
 	inputFiles := []string{}
 	outputPath := ""
-	
+
 	for i := 0; i < len(args); i++ {
 		if args[i] == "-o" && i+1 < len(args) {
 			outputPath = args[i+1]
