@@ -1,59 +1,6 @@
 # TODO
 
-## Completed - Recent Fixes ✅
-
-### Guard Match Expression Fix (2025-12-16)
-**Problem**: Guard match expressions at module level returned 0 instead of their actual values.
-
-Example that was broken:
-```c67
-test = { | x == 0 => 100 ~> 999 }  // Returned 0 instead of 999
-println(f"test = {test}")          // Printed "test = 0"
-```
-
-**Root Cause**: Parser was incorrectly wrapping guard match expressions in zero-argument lambdas.
-The logic assumed that match expressions with non-IdentExpr conditions should be lambdas.
-Guard matches use `NumberExpr{1.0}` as their condition, so they were always wrapped.
-
-**Solution**: Match expressions now ALWAYS execute immediately. They are never wrapped in lambdas
-automatically. If users want a lambda that returns a match result, they write it explicitly:
-```c67
-f = (x) { | x == 0 => "zero" }  // Explicit lambda parameter
-```
-
-**Impact**: This was a critical bug affecting all guard match expressions at module/global scope.
-Function-level guards worked correctly because they executed in a lambda context anyway.
-
----
-
-## Completed
-- [x] Let `println` handle multiple arguments.
-- [x] Implement peephole optimization patterns (infrastructure exists in optimizer.go).
-  - Added double negation optimization: not(not(x)) -> x != 0
-  - Added De Morgan's law: (not x) and (not y) -> not(x or y)
-  - Added absorption laws: x and (x or y) -> x, x or (x and y) -> x
-  - Added boolean algebra simplifications (and/or with true/false)
-- [x] Add register pressure tracking to identify spill-heavy code
-- [x] Add vector width detection for target platform
-- [x] Add test cases to reproduce the closure capture issue
-- [x] Add CPUID detection for BMI1/BMI2 support
-- [x] Implement POPCNT instruction for bit counting
-- [x] Implement TZCNT instruction for trailing zeros
-- [x] Implement LZCNT instruction for leading zeros
-- [x] Use BMI1/BMI2 instructions when available on x86-64
-- [x] Add SIMD intrinsics for common operations
-- [x] Implement simple register use/def analysis
-- [x] Create data structures for live ranges
-- [x] Add loop analysis to detect vectorization candidates
-- [x] Implement simple loop dependency analysis
-- [x] Auto-vectorize simple parallel loops using existing SIMD infrastructure
-  - Supports +, -, * operations on arrays
-  - AVX2 support (256-bit, 4 doubles per vector)
-  - AVX-512 support (512-bit, 8 doubles per vector) via EnableAVX512 flag
-  - Automatic scalar cleanup loop for non-aligned sizes
-  - Pattern matching for: result[i] = a[i] OP b[i]
-
-## High Priority - Executable Size Optimization (for 64k demos)
+## Executable Size Optimization (for 64k demos)
 
 ### Current Status
 - Minimal program (x := 42): 45KB
@@ -63,15 +10,22 @@ Function-level guards worked correctly because they executed in a lambda context
 
 ### Size Reduction Tasks
 - [x] Add function usage tracking (usedFunctions map)
+- [x] Add emission flags for all runtime functions (foundation laid)
 - [ ] Make runtime functions conditionally included (only when used)
   - [x] String concatenation (_c67_string_concat) - wrapped in conditional
-  - [ ] List functions (cons, head, tail, etc.)
-  - [ ] String manipulation (upper, lower, trim)
-  - [ ] cstr conversion functions
-  - [ ] Arena allocator code (if no `alloc` used)
-  - [ ] Bounds checking code (if no array access)
-  - [ ] Recursion depth tracking (if no recursion)
-  - [ ] Loop iteration limiting (if no loops)
+  - [ ] String print/println (_c67_string_print, _c67_string_println)
+  - [ ] String equality (_c67_string_eq)
+  - [ ] String slicing (c67_slice_string)
+  - [ ] String conversions (c67_string_to_cstr, cstr_to_c67_string)
+  - [ ] List functions (_c67_list_cons, _c67_list_head, _c67_list_tail, _c67_list_length, _c67_list_index, _c67_list_update)
+  - [ ] List operations (_c67_list_concat, _c67_list_repeat)
+  - [ ] Arena allocator functions (c67_arena_create, c67_arena_alloc, c67_arena_destroy, c67_arena_reset, _c67_arena_ensure_capacity)
+  - [ ] Cache functions (c67_cache_lookup, c67_cache_insert)
+  - [ ] Printf runtime (full format string parser)
+  - [ ] Itoa (_c67_itoa - number to string conversion)
+  - [ ] Print syscalls (_c67_print_syscall, _c67_println_syscall - Linux only)
+- [ ] Track which runtime functions are actually needed per program
+- [ ] Wire emission flags to usage tracking
 - [ ] Remove or minimize ELF headers overhead
 - [ ] Implement dead code elimination pass
 - [ ] Strip unnecessary alignment padding
@@ -79,20 +33,14 @@ Function-level guards worked correctly because they executed in a lambda context
 - [ ] Add `-tiny` flag for demo-optimized builds
 - [ ] Target: <8KB for minimal "Hello World"
 
-## High Priority - Language Features from Design Decisions
+## Language Features from Design Decisions
 
 ### Operator Implementation
-- [x] Implement `~` as bitwise NOT operator (in addition to `!`)
-- [x] Add `µ` token for memory ownership/movement
 - [ ] Implement `µ` operator semantics for memory ownership/movement
-- [ ] Add `?` suffix for optional types (e.g., `x?: int`)
-- [ ] Implement `.?` safe navigation operator
-- [ ] Add `??` null coalescing operator
 
 ### Safety Features
 - [ ] Implement optional types with None/Some semantics
 - [ ] Add compile-time null safety checks
-- [x] Implement bounds checking for array access
 - [ ] Add division by zero checks
 - [ ] Implement stack overflow detection
 - [ ] Add integer overflow detection options
@@ -103,22 +51,11 @@ Function-level guards worked correctly because they executed in a lambda context
 - [ ] Add exception propagation semantics for defer statements
 - [ ] Add defer ordering guarantees in documentation
 
-### SIMD and Vectorization
-- [x] Add loop analysis to detect vectorization candidates
-- [x] Implement simple loop dependency analysis
-- [x] Add vector width detection for target platform
-- [x] Auto-vectorize simple parallel loops using existing SIMD infrastructure
-- [x] Add SIMD intrinsics for common operations
-
 ### Module-level mutable globals in lambdas
-- [x] Add test cases to reproduce the closure capture issue
 - [ ] Fix variable scope tracking in lambda compilation
 - [ ] Ensure mutable globals are properly referenced through rbp
 
 ### Register Allocation Improvements
-- [x] Add register pressure tracking to identify spill-heavy code
-- [x] Implement simple register use/def analysis
-- [x] Create data structures for live ranges
 - [ ] Implement live range analysis for better register allocation
 - [ ] Add register reuse hints based on live ranges
 - [ ] Implement linear scan register allocation to reduce spilling
@@ -130,13 +67,6 @@ Function-level guards worked correctly because they executed in a lambda context
 - [ ] Add circular dependency detection
 
 ## Architecture-Specific
-
-### x86-64 Optimizations
-- [x] Add CPUID detection for BMI1/BMI2 support
-- [x] Implement POPCNT instruction for bit counting
-- [x] Implement TZCNT instruction for trailing zeros
-- [x] Implement LZCNT instruction for leading zeros
-- [x] Use BMI1/BMI2 instructions when available on x86-64
 
 ### ARM64 Optimizations
 - [ ] Add CSEL instruction support in ARM64 backend
@@ -178,7 +108,7 @@ Function-level guards worked correctly because they executed in a lambda context
 - [ ] Add dependency tracking between compilation units
 - [ ] Add incremental compilation result caching
 
-## High Priority - Fix Core Language Issues
+## Fix Core Language Issues
 
 ### Issue 1: Mixed Statement-Guard Blocks
 **Status**: Not yet needed - current design works well
@@ -238,7 +168,7 @@ This document tracks known errors, limitations, and edge cases in the C67 compil
 
 ### 1. Doubly-Nested Recursive Calls with Multiple Arguments
 
-**Status**: FIXED ✅  
+**Status**: FIXED ✅
 **Date Fixed**: 2025-12-16
 
 **Description**: Functions with multiple arguments that make recursive calls where one argument is itself a recursive call now work correctly.
