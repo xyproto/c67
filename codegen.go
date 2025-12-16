@@ -8301,13 +8301,15 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.Ret()
 	} // end if _c67_cstr_to_string used
 
-	// Generate _c67_slice_string(str_ptr, start, end, step) -> new_str_ptr
-	// Arguments: rdi = string_ptr, rsi = start_index (int64), rdx = end_index (int64), rcx = step (int64)
-	// Returns: rax = pointer to new sliced string
-	// String format (map): [count (float64)][key0 (float64)][val0 (float64)]...
-	// Note: Currently only step == 1 is fully supported
+	// Generate _c67_slice_string only if used
+	if fc.usedFunctions["_c67_slice_string"] {
+		// Generate _c67_slice_string(str_ptr, start, end, step) -> new_str_ptr
+		// Arguments: rdi = string_ptr, rsi = start_index (int64), rdx = end_index (int64), rcx = step (int64)
+		// Returns: rax = pointer to new sliced string
+		// String format (map): [count (float64)][key0 (float64)][val0 (float64)]...
+		// Note: Currently only step == 1 is fully supported
 
-	fc.eb.MarkLabel("_c67_slice_string")
+		fc.eb.MarkLabel("_c67_slice_string")
 
 	// Function prologue
 	fc.out.PushReg("rbp")
@@ -8485,9 +8487,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.PopReg("r12")
 	fc.out.PopReg("rbx")
 
-	// Function epilogue
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Function epilogue
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
+	} // end if _c67_slice_string used
 
 	// Generate _c67_list_concat(left_ptr, right_ptr) -> new_ptr
 	// Arguments: rdi = left_ptr, rsi = right_ptr
