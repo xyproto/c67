@@ -18,7 +18,7 @@ func (fc *C67Compiler) GeneratePrintfSyscallRuntime() {
 	}
 
 	// Only generate if printf or print_syscall is actually used
-	if !fc.usedFunctions["printf"] && !fc.usedFunctions["_c67_print_syscall"] {
+	if !fc.runtimeFeatures.Uses(FeaturePrintf) && !fc.runtimeFeatures.Uses(FeaturePrintSyscall) {
 		return
 	}
 
