@@ -74,12 +74,19 @@ wpo_test
 *.backup
 *.bak
 
-examples/ackermann
-examples/primes
-examples/fib
-examples/fibonacci
-examples/add
 examples/hello
-examples/sdl3example
+examples/ackermann
 examples/factorial
+examples/fib
+examples/fib_bench
 examples/hello_simple
+examples/hello_test
+examples/minimal
+examples/primes
+examples/sdl3example
+examples/test_bool
+examples/test_bool2
+examples/test_cli_args
+examples/test_cstring_access
+examples/test_fstring
+examples/test_match
