@@ -1,6 +1,11 @@
 # TODO
 
-## 🔥 Priority 1: Demoscene & Size Optimization (<8KB Goal)
+## Priority 0: Fixes and verifications
+
+- [ ] Fix variable scope tracking in lambda compilation (module-level mutable globals).
+- [ ] Verify import system properly initializes closures across modules.
+
+## Priority 1: Demoscene & Size Optimization (<8KB Goal)
 
 The goal is to enable the creation of competitive 64k intros (Linux/x86_64) using SDL3/RayLib. "Hello World" should be <1KB, not 21KB.
 
@@ -19,9 +24,7 @@ The goal is to enable the creation of competitive 64k intros (Linux/x86_64) usin
 - [ ] **Shader Minification**
     - [ ] Add support for embedding and minifying GLSL strings at compile time.
 
-## 🌟 Priority 2: Language Quality & "HN Appeal"
-
-To be taken seriously on Hacker News, Lobsters, and r/programming, the language needs robust tooling and "systems" credibility.
+## Priority 2: Language quality and tooling
 
 - [ ] **Developer Tooling (Critical)**
     - [ ] **Language Server Protocol (LSP)**: Implement a basic LSP for VS Code/Neovim (Go-to-definition, simple completions).
@@ -35,7 +38,7 @@ To be taken seriously on Hacker News, Lobsters, and r/programming, the language 
     - [ ] Create a benchmark suite comparing C67 vs C (gcc -O2/-O3) vs Go.
     - [ ] Optimize the `match` compiler to generate jump tables for density/speed.
 
-## 🚀 Priority 3: Language Features
+## Priority 3: Language Features
 
 Refining the "Vibe" into a rigorous specification.
 
@@ -49,13 +52,13 @@ Refining the "Vibe" into a rigorous specification.
     - [ ] Tuple destructuring: `(x, y) = point`.
     - [ ] Nested patterns: `[[a, b], c] = list`.
 
-## 🛠️ Priority 4: Platform & Architecture
+## Priority 4: Platform & Architecture
 
 - [ ] **Linux/ARM64**: Polish the ARM64 backend to parity with x86_64.
 - [ ] **Windows/x86_64**: Ensure PE header generation produces valid, small executables (currently focused on ELF).
 - [ ] **macOS**: Finish Mach-O support.
 
-## 🔮 Priority 5: The "Self-Hosting" Dream
+## Priority 5: Self-hosting
 
 The ultimate proof of language quality.
 
@@ -63,12 +66,8 @@ The ultimate proof of language quality.
 - [ ] Write the Code Generator in C67.
 - [ ] Bootstrap: Use the Go compiler to compile the C67 compiler, then use that to compile itself.
 
----
+## Priority 6: Nice to have and optimizations
 
-### Backlog / Cleanup
-
-- [ ] Fix variable scope tracking in lambda compilation (module-level mutable globals).
-- [ ] Verify import system properly initializes closures across modules.
 - [ ] Implement Windows decompressor stub with VirtualAlloc.
 - [ ] Implement proper import table generation for PE files.
 - [ ] Optimize O(n²) string iteration in codegen.
