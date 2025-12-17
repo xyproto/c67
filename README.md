@@ -128,7 +128,7 @@ sdl.SDL_Init(sdl.SDL_INIT_VIDEO)
 defer sdl.SDL_Quit()
 ```
 
-## 🎮 Example: Simple use of SDL3
+## 🎮 Example: Displaying an image with SDL3
 
 * Requires `img/grumpy-cat.bmp`.
 * When compiling for Windows, this also requires `SDL3.dll` and the `include/SDL3` folder (with SDL3 header files).
