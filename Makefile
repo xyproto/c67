@@ -23,4 +23,4 @@ test:
 	$(GO) test -failfast -timeout 1m ./...
 
 clean:
-	rm -rf $(PROGRAM) build/ test_*
+	rm -rf $(PROGRAM) build/
