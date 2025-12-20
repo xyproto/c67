@@ -2,6 +2,7 @@
 package main
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"os/exec"
@@ -113,13 +114,86 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 	baseAddr := uint64(0x100000000) // macOS base address (4GB zero page)
 
 	// Calculate text section address (after Mach-O headers)
-	// This matches the calculation in macho.go
+	// This must match the calculation in macho.go
 	headerSize := uint32(32) // MachHeader64 size
-	// Estimate load commands size (this is a rough estimate, macho.go has the exact calculation)
-	// LC_SEGMENT_64 (TEXT), LC_SEGMENT_64 (DATA), LC_SYMTAB, LC_DYSYMTAB, LC_LOAD_DYLIB
-	estimatedLoadCmdsSize := uint32(1000) // Conservative estimate
-	fileHeaderSize := uint64(headerSize + estimatedLoadCmdsSize)
+
+	// Calculate preliminary load commands size (matching macho.go logic exactly)
+	// Check if there are any rodata symbols to be written
+	rodataSymbols := fc.eb.RodataSection()
+	hasRodata := len(rodataSymbols) > 0
+	rodataSize := 0
+	if hasRodata {
+		rodataSize = 1 // Placeholder value >  0 to indicate rodata exists
+	}
+	numImports := uint32(len(neededFuncs))
+	loadCmdsSize := uint32(0)
+
+	// __PAGEZERO segment
+	loadCmdsSize += uint32(binary.Size(SegmentCommand64{}))
+
+	// __TEXT segment with sections
+	textNSects := uint32(1) // __text
+	if fc.eb.useDynamicLinking && numImports > 0 {
+		textNSects++ // __stubs
+	}
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "DEBUG: textNSects=%d, useDynamicLinking=%v, numImports=%d\n", textNSects, fc.eb.useDynamicLinking, numImports)
+	}
+	loadCmdsSize += uint32(binary.Size(SegmentCommand64{}) + int(textNSects)*binary.Size(Section64{}))
+
+	// __DATA segment with sections (if needed)
+	if rodataSize > 0 || (fc.eb.useDynamicLinking && numImports > 0) {
+		dataNSects := uint32(0)
+		if rodataSize > 0 {
+			dataNSects++
+		}
+		if fc.eb.useDynamicLinking && numImports > 0 {
+			dataNSects++ // __got
+		}
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "DEBUG: dataNSects=%d, rodataSize=%d\n", dataNSects, rodataSize)
+		}
+		loadCmdsSize += uint32(binary.Size(SegmentCommand64{}) + int(dataNSects)*binary.Size(Section64{}))
+	}
+
+	// __LINKEDIT segment
+	loadCmdsSize += uint32(binary.Size(SegmentCommand64{}))
+
+	// LC_LOAD_DYLINKER
+	dylinkerPath := "/usr/lib/dyld\x00"
+	dylinkerCmdSize := (uint32(binary.Size(LoadCommand{})+4+len(dylinkerPath)) + 7) &^ 7
+	loadCmdsSize += dylinkerCmdSize
+
+	// LC_UUID
+	loadCmdsSize += uint32(binary.Size(UUIDCommand{}))
+
+	// LC_BUILD_VERSION
+	loadCmdsSize += uint32(binary.Size(BuildVersionCommand{}))
+
+	// LC_MAIN
+	loadCmdsSize += uint32(binary.Size(EntryPointCommand{}))
+
+	// LC_SYMTAB
+	loadCmdsSize += uint32(binary.Size(SymtabCommand{}))
+
+	// LC_CODE_SIGNATURE
+	loadCmdsSize += uint32(binary.Size(LinkEditDataCommand{}))
+
+	// LC_LOAD_DYLIB (default to libSystem)
+	dylibPath := "/usr/lib/libSystem.B.dylib\x00"
+	dylibCmdSize := (uint32(binary.Size(LoadCommand{})+16+len(dylibPath)) + 7) &^ 7
+	loadCmdsSize += dylibCmdSize
+
+	// LC_DYSYMTAB
+	loadCmdsSize += uint32(binary.Size(DysymtabCommand{}))
+
+	fileHeaderSize := uint64(headerSize + loadCmdsSize)
 	textSectAddr := baseAddr + fileHeaderSize
+
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "DEBUG codegen_macho_writer: headerSize=%d, loadCmdsSize=%d, fileHeaderSize=%d, textSectAddr=0x%x\n",
+			headerSize, loadCmdsSize, fileHeaderSize, textSectAddr)
+	}
 
 	textSize := uint64(fc.eb.text.Len())
 	textSizeAligned := (textSize + pageSize - 1) &^ (pageSize - 1)
@@ -132,7 +206,7 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 	}
 
 	// Get all rodata symbols and write them
-	rodataSymbols := fc.eb.RodataSection()
+	rodataSymbols = fc.eb.RodataSection()
 	currentAddr := rodataAddr
 	for symbol, value := range rodataSymbols {
 		fc.eb.WriteRodata([]byte(value))
@@ -143,7 +217,7 @@ func (fc *C67Compiler) writeMachOARM64(outputPath string) error {
 		}
 	}
 
-	rodataSize := fc.eb.rodata.Len()
+	rodataSize = fc.eb.rodata.Len()
 
 	// Now write all writable data symbols to the data buffer and assign addresses
 	// Data comes after rodata

@@ -78,7 +78,7 @@ func NewARM64CodeGen(eb *ExecutableBuilder, cConstants map[string]*CHeaderConsta
 // CompileProgram compiles a C67 program to ARM64
 func (acg *ARM64CodeGen) CompileProgram(program *Program) error {
 	// Initialize arena tracking
-	acg.currentArena = 0
+	acg.currentArena = 1 // Start at 1 to enable default global arena
 
 	// Push defer scope for program-level defers
 	acg.pushDeferScope()
@@ -5133,16 +5133,16 @@ func (acg *ARM64CodeGen) compileFFICall(call *CallExpr) error {
 
 // compileAlloc compiles the alloc() builtin for arena allocation
 func (acg *ARM64CodeGen) compileAlloc(call *CallExpr) error {
-	// alloc(size) - Context-aware memory allocation
-	// Inside arena { }: allocates from arena with auto-growing
-	// Outside arena: error (use malloc via C FFI if needed)
+	// alloc(size) - Arena-based memory allocation
+	// Allocates from current arena (global arena by default, or nested arena inside arena { } blocks)
+	// The arena system auto-grows as needed using realloc
 	if len(call.Args) != 1 {
 		return fmt.Errorf("alloc() requires 1 argument (size)")
 	}
 
-	// Check if we're in an arena context
+	// Sanity check - currentArena should never be 0 (it starts at 1 for global arena)
 	if acg.currentArena == 0 {
-		return fmt.Errorf("alloc() can only be used inside an arena { ... } block. Use malloc() via C FFI if you need manual memory management")
+		return fmt.Errorf("internal error: alloc() called with currentArena=0 (should start at 1)")
 	}
 
 	// Simplified ARM64 implementation: just call malloc directly
