@@ -63,7 +63,12 @@ Refining the "Vibe" into a rigorous specification.
 - [ ] **Safety & Types**
     - [ ] Implement `µ` operator semantics for explicit memory ownership/movement.
     - [ ] Add `??` null coalescing operator and `?` optional type suffix.
-    - [ ] Implement compile-time division-by-zero checks.
+    - [ ] **Complete runtime division-by-zero checks**:
+        - [ ] Add zero-check to `compileBinaryOpSafe()` division path (line 11100 - currently missing)
+        - [ ] Decide: Add zero-check to unsafe block division in `compileRegisterOp()` or document that unsafe means unchecked?
+        - [ ] Add zero-check to any ARM64/RISC-V division paths that lack it
+        - [ ] Audit all `DivsdXmm`, `DivRegByReg`, `DivRegByImm` call sites for missing checks
+        - Note: x86_64 `compileExpression()` already has complete runtime checks for division (line 4817) and modulo (line 4856)
 - [ ] **Metaprogramming**
     - [ ] "Comptime" evaluation: Execute pure C67 functions at compile time to generate constants (tables, sin/cos LUTS).
 - [ ] **Advanced Pattern Matching**
