@@ -73,6 +73,8 @@ type C67Compiler struct {
 	usedFunctions        map[string]bool               // Track which functions are called
 	unknownFunctions     map[string]bool               // Track functions called but not defined
 	callOrder            []string                      // Track order of function calls
+	cFFIFunctions        map[string]string             // Track C FFI calls: function -> library
+	dynamicLibraries     map[string]bool               // Track which dynamic libraries are needed
 	cImports             map[string]string             // Track C imports: alias -> library name
 	cLibHandles          map[string]string             // Track library handles: library -> handle var name
 	cConstants           map[string]*CHeaderConstants  // Track C constants: alias -> constants
@@ -208,6 +210,8 @@ func NewC67Compiler(platform Platform, verbose bool) (*C67Compiler, error) {
 		usedFunctions:       make(map[string]bool),
 		unknownFunctions:    make(map[string]bool),
 		callOrder:           []string{},
+		cFFIFunctions:       make(map[string]string),
+		dynamicLibraries:    make(map[string]bool),
 		cImports:            make(map[string]string),
 		cLibHandles:         make(map[string]string),
 		cConstants:          make(map[string]*CHeaderConstants),
@@ -12159,6 +12163,10 @@ func (fc *C67Compiler) compileCFunctionCall(libName string, funcName string, arg
 
 	// Track library dependency for ELF generation
 	fc.cLibHandles[libName] = "linked" // Mark as needing dynamic linking
+	
+	// Track C FFI function and library for verbose output
+	fc.cFFIFunctions[funcName] = libName
+	fc.dynamicLibraries[libName] = true
 
 	// Track function usage for PLT generation and call order patching
 	fc.trackFunctionCall(funcName)
@@ -12664,7 +12672,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 	if call.IsCFFI {
 		// C FFI calls go directly to the C function without namespace lookup
 		// The parser has already stripped the "c." prefix, so call.Function is just "malloc", "free", etc.
-		fc.compileCFunctionCall("", call.Function, call.Args)
+		// Use "c" as the library name (libc)
+		fc.compileCFunctionCall("c", call.Function, call.Args)
 		return
 	}
 
@@ -19190,6 +19199,25 @@ func CompileC67WithOptions(inputPath string, outputPath string, platform Platfor
 			} else {
 				fmt.Println()
 			}
+		}
+	}
+	
+	// Report dynamic linking information in verbose mode
+	if verbose {
+		fmt.Fprintf(os.Stderr, "\n=== Dynamic Linking ===\n")
+		if len(compiler.cFFIFunctions) > 0 {
+			fmt.Fprintf(os.Stderr, "C FFI functions used:\n")
+			for funcName, libName := range compiler.cFFIFunctions {
+				fmt.Fprintf(os.Stderr, "  %s (from %s)\n", funcName, libName)
+			}
+			if len(compiler.dynamicLibraries) > 0 {
+				fmt.Fprintf(os.Stderr, "Dynamic libraries required:\n")
+				for lib := range compiler.dynamicLibraries {
+					fmt.Fprintf(os.Stderr, "  lib%s\n", lib)
+				}
+			}
+		} else {
+			fmt.Fprintf(os.Stderr, "No C FFI used - binary uses only syscalls\n")
 		}
 	}
 
