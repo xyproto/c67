@@ -26,6 +26,20 @@ func needsMainWrapper(code string) bool {
 	if strings.Contains(code, "import ") {
 		return false
 	}
+	// Don't wrap if has module-level variable declarations before function definitions
+	// Pattern: "name := value" at start of line before "->"
+	lines := strings.Split(code, "\n")
+	hasModuleLevelVar := false
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.Contains(trimmed, ":=") && !strings.Contains(trimmed, "->") {
+			hasModuleLevelVar = true
+		}
+		if hasModuleLevelVar && strings.Contains(trimmed, "->") {
+			// Has a variable declaration before a lambda definition
+			return false
+		}
+	}
 	return true
 }
 

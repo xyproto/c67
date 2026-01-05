@@ -56,17 +56,17 @@ println(counter(5))
 			expected: "105\n",
 		},
 		{
-			name: "lambda_captures_module_global_mutable_KNOWN_ISSUE",
+			name:     "lambda_captures_module_global_mutable",
 			source: `counter := 0
 increment := () -> {
-    counter = counter + 1
+    counter <- counter + 1
     counter
 }
 println(increment())
 println(increment())
 println(counter)
 `,
-			expected: "SKIP: Known issue - lambdas cannot update module-level mutable globals (shadowing error)",
+			expected: "1\n2\n2",
 		},
 		{
 			name: "nested_lambda_with_module_global_KNOWN_ISSUE",
@@ -77,23 +77,23 @@ outer := (x) -> {
 }
 f := outer(5)
 println(f(3))
-state = 20
+state <- 20
 println(f(3))
 `,
 			expected: "SKIP: Known issue - module-level mutable updates don't reflect in closures",
 		},
 		{
-			name: "lambda_modifying_captured_mutable_KNOWN_ISSUE",
+			name:     "lambda_modifying_captured_mutable",
 			source: `total := 0
 add_to_total := (n) -> {
-    total = total + n
+    total <- total + n
     total
 }
 println(add_to_total(10))
 println(add_to_total(20))
 println(total)
 `,
-			expected: "SKIP: Known issue - lambdas cannot modify module-level mutable globals",
+			expected: "10\n30\n30",
 		},
 	}
 

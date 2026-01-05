@@ -22,7 +22,6 @@
 
 ## Priority 0: Fixes and verifications (General)
 
-- [ ] Fix variable scope tracking in lambda compilation (module-level mutable globals).
 - [ ] Verify import system properly initializes closures across modules.
 
 ## Priority 1: Demoscene & Size Optimization (<8KB Goal)
