@@ -125,8 +125,7 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 		ds.AddNeeded("libpthread.so.0")
 	}
 
-	// Check if libm functions are used (sin, cos, etc use x87 instructions, not libm)
-	// Only need libm if explicitly calling through C FFI
+	// Note: sin, cos, sqrt, pow all use x87/SSE instructions - no libm needed!
 
 	// Add C library dependencies from imports
 	for libName := range fc.cLibHandles {

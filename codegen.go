@@ -5074,10 +5074,37 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 			fc.out.XorRegWithReg("rax", "rcx") // rax ^= rcx
 			fc.out.Cvtsi2sd("xmm0", "rax")     // xmm0 = float64(rax)
 		case "**":
-			// Power: call pow(base, exponent) from libm
-			// xmm0 = base, xmm1 = exponent -> result in xmm0
-			fc.trackFunctionCall("pow")
-			fc.eb.GenerateCallInstruction("pow")
+			// Power: x^y = 2^(y * log2(x))
+			// Inline implementation using x87 (no libm needed)
+			// xmm0 = base, xmm1 = exponent
+			fc.out.SubImmFromReg("rsp", 16)
+			fc.out.MovXmmToMem("xmm0", "rsp", 0)    // save base
+			fc.out.MovXmmToMem("xmm1", "rsp", 8)    // save exponent
+			
+			fc.out.Fld1()                            // ST(0) = 1.0
+			fc.out.FldMem("rsp", 0)                  // ST(0) = base, ST(1) = 1.0
+			fc.out.Fyl2x()                           // ST(0) = log2(base)
+			fc.out.FldMem("rsp", 8)                  // ST(0) = exponent, ST(1) = log2(base)
+			fc.out.Fmulp()                           // ST(0) = exponent * log2(base)
+			
+			// Split into integer and fractional parts
+			fc.out.FldSt0()                          // Duplicate
+			fc.out.Frndint()                         // ST(0) = integer part
+			fc.out.FldSt0()                          // ST(0) = n, ST(1) = n, ST(2) = full
+			fc.out.Write(0xD9)                       // FXCH st(2)
+			fc.out.Write(0xCA)
+			fc.out.Fsubrp()                          // ST(0) = fractional, ST(1) = integer
+			
+			fc.out.F2xm1()                           // ST(0) = 2^frac - 1
+			fc.out.Fld1()                            // ST(0) = 1, ST(1) = 2^frac - 1
+			fc.out.Faddp()                           // ST(0) = 2^frac
+			fc.out.Fscale()                          // ST(0) = 2^frac * 2^integer = result
+			fc.out.Write(0xDD)                       // fstp ST(1) - pop integer
+			fc.out.Write(0xD9)
+			
+			fc.out.FstpMem("rsp", 0)
+			fc.out.MovMemToXmm("xmm0", "rsp", 0)
+			fc.out.AddImmToReg("rsp", 16)
 		case "::":
 			// Cons: prepend element to list
 			// xmm0 = element, xmm1 = list pointer
@@ -7258,8 +7285,15 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 	for i := 0; i < len(fc.lambdaFuncs); i++ {
 		lambda := fc.lambdaFuncs[i]
 		
+		// TEMPORARILY DISABLE DCE - it breaks nested lambdas and higher-order functions
+		// TODO: Fix DCE to handle:
+		// - Lambdas returned as values (not called)
+		// - Higher-order functions
+		// - Proper transitive closure of dependencies
+		skipDCE := true
+		
 		// Skip unused lambdas (DCE)
-		if !fc.calledLambdas[lambda.Name] {
+		if !skipDCE && !fc.calledLambdas[lambda.Name] {
 			if VerboseMode {
 				fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unused lambda '%s'\n", lambda.Name)
 			}
