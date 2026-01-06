@@ -22,6 +22,34 @@
 - ✅ Fixed Windows PE compilation issue with arena functions
 - ✅ All tests passing including Windows PE
 - ✅ Multi-file compilation now works correctly (add.c67 + hello.c67)
+- ✅ Added DCE guards to all runtime helper functions
+- ✅ Binary size: Minimal programs now 1.1KB (was 21KB)
+- ✅ Printf/println still 21KB due to syscall runtime (~10KB)
+
+## DCE Implementation Status
+
+### Runtime Helpers with Guards (All Complete):
+- ✅ `_c67_string_concat` - only if string concatenation used
+- ✅ `_c67_string_to_cstr` - only if C FFI or println/printf used  
+- ✅ `_c67_cstr_to_string` - only if C string conversion used
+- ✅ `_c67_slice_string` - only if string slicing used
+- ✅ `_c67_list_concat` - only if list concatenation used
+- ✅ `_c67_list_repeat` - only if list repeat used
+- ✅ `_c67_string_eq` - only if string comparison used
+- ✅ `upper_string`, `lower_string`, `trim_string` - only if used
+- ✅ `_c67_string_println` - only if println used
+- ✅ `_c67_string_print` - only if print used
+- ✅ `_c67_itoa` - only if number to string conversion used
+- ✅ Printf syscall runtime - only if printf/println used on Linux
+- ✅ Arena functions - only if `fc.usesArenas` is true
+- ✅ List functions - only if arenas enabled (they require arenas)
+
+### Results:
+- Minimal program (just `42`): **1.1KB** ✨
+- Programs with println: **21KB** (printf runtime is ~10KB)
+- All tests passing
+- Multi-file compilation works
+- Windows PE generation works
 
 ## Binary Size Optimization
 

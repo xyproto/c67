@@ -7997,8 +7997,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	// Don't call fc.eb.EmitArenaRuntimeCode() as it's the old stub from main.go
 	// Arena symbols are predeclared earlier in writeELF() to ensure they're available during code generation
 
-	// Generate syscall-based printf runtime on Linux
-	fc.GeneratePrintfSyscallRuntime()
+	// Generate syscall-based printf runtime on Linux (only if printf/println used)
+	if fc.eb.target.OS() == OSLinux && (fc.usedFunctions["printf"] || fc.usedFunctions["println"]) {
+		fc.GeneratePrintfSyscallRuntime()
+	}
 
 	// Only generate cache functions if actually used (small optimization)
 	if len(fc.cacheEnabledLambdas) > 0 {
@@ -10004,7 +10006,9 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.Ret()
 	} // end if usesArenas (list functions)
 
-	// Generate _c67_string_println(string_ptr) - prints string followed by newline
+	// String output functions - only generate if used
+	if fc.usedFunctions["_c67_string_println"] || fc.usedFunctions["println"] {
+		// Generate _c67_string_println(string_ptr) - prints string followed by newline
 	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
 	fc.eb.MarkLabel("_c67_string_println")
 
@@ -10157,8 +10161,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
 	}
+	} // end if _c67_string_println used
 
-	// Generate _c67_string_print(string_ptr) - prints string WITHOUT newline
+	if fc.usedFunctions["_c67_string_print"] {
+		// Generate _c67_string_print(string_ptr) - prints string WITHOUT newline
 	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
 	fc.eb.MarkLabel("_c67_string_print")
 
@@ -10286,9 +10292,12 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
 	}
+	} // end if _c67_string_print used
 
 	// Generate _c67_itoa for number to string conversion
-	fc.generateItoa()
+	if fc.usedFunctions["_c67_itoa"] {
+		fc.generateItoa()
+	}
 
 	// Generate syscall-based print helpers for Linux
 	if fc.eb.target.OS() == OSLinux {
