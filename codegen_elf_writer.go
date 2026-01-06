@@ -88,6 +88,26 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 		}
 		fc.eb.useDynamicLinking = false
 
+		// Generate runtime helper functions (they may create rodata symbols)
+		fc.generateRuntimeHelpers()
+
+		// Build rodata section from sorted read-only constants
+		fc.eb.rodata.Reset()
+		rodataOffset := 0
+		// Sort symbols for consistent ordering
+		rodataSymbols := []string{}
+		for name, c := range fc.eb.consts {
+			if !c.writable && c.value != "" {
+				rodataSymbols = append(rodataSymbols, name)
+			}
+		}
+		sort.Strings(rodataSymbols)
+		for _, name := range rodataSymbols {
+			c := fc.eb.consts[name]
+			fc.eb.rodata.Write([]byte(c.value))
+			rodataOffset += len(c.value)
+		}
+
 		// Build data section from writable constants FIRST
 		fc.eb.data.Reset()
 		dataSymbols := make(map[string]int) // name -> offset in data section
@@ -145,6 +165,22 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 			if VerboseMode {
 				fmt.Fprintf(os.Stderr, "  %s -> 0x%x (offset=%d)\n", name, addr, offset)
 			}
+		}
+
+		// Assign addresses to rodata symbols (strings, constants) using same order
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "Assigning rodata symbol addresses: rodataAddr=0x%x, size=%d\n",
+				rodataAddr, rodataSize)
+		}
+		rodataOffset = 0
+		for _, name := range rodataSymbols {
+			c := fc.eb.consts[name]
+			addr := rodataAddr + uint64(rodataOffset)
+			fc.eb.DefineAddr(name, addr)
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "  %s -> 0x%x (offset=%d, len=%d)\n", name, addr, rodataOffset, len(c.value))
+			}
+			rodataOffset += len(c.value)
 		}
 
 		if VerboseMode {
