@@ -1,26 +1,26 @@
 # TODO
 
-## Known Critical Issues
-- **printf %b format requires arena init** - mysterious bug, needs deep investigation
-  - Symptom: "yesno" output instead of "yes" (string overlap/corruption)
-  - Workaround: Keep fc.usesArenas = true by default (costs 21KB binaries)
-  - Root cause unknown - printf doesn't use arenas at all!
-  
 ## Binary Size Optimization
-- Investigate printf %b arena dependency (blocks <1KB binaries)
 - Implement tree shaking to remove unused runtime functions
 - Add minimal C runtime for static binaries (remove libc dependency)
 - Compress embedded error messages
+- Merge segments into single RWX for minimum ELF size
 
 ## Pattern Matching Improvements  
 - Add exhaustiveness checking for match expressions
 - Support pattern guards (when clauses)
 - Add destructuring in match patterns
+- Generate jump tables for dense integer matches (10+ consecutive cases)
+
+## Test Harness Issues
+- eprint/print syscall tests fail when capturing stderr in test harness
+- Need to investigate exec.CombinedOutput() stderr capture on Linux
 
 ## Completed Today
-- ✅ Static ELF rodata generation (symbols properly patched)
-- ✅ eprintln works in static mode (350 bytes!)
-- ✅ All tests passing with arena workaround
+- ✅ Fixed printf %b stale slice bug (was printing "yesno" instead of "yes")
+- ✅ Simple programs now 401 bytes (static ELF, no arena overhead)
+- ✅ Identified root cause: buffer reallocation invalidated cached byte slice
+- ✅ Static ELF rodata generation working correctly
 
 ## Binary Size Optimization
 
