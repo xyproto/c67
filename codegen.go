@@ -59,63 +59,63 @@ type LoopInfo struct {
 
 // Code Generator for C67
 type C67Compiler struct {
-	eb                   *ExecutableBuilder
-	out                  *Out
-	platform             Platform                      // Target platform (arch + OS)
-	variables            map[string]int                // variable name -> stack offset
-	mutableVars          map[string]bool               // variable name -> is mutable
-	lambdaVars           map[string]bool               // variable name -> is lambda/function
-	parentVariables      map[string]bool               // Track parent-scope vars in parallel loops (use r11 instead of rbp)
-	varTypes             map[string]string             // variable name -> "map" or "list" (legacy)
-	varTypeInfo          map[string]*C67Type           // variable name -> type annotation (new type system)
-	functionSignatures   map[string]*FunctionSignature // function name -> signature (params, variadic)
-	sourceCode           string                        // Store source for recompilation
-	usedFunctions        map[string]bool               // Track which functions are called
-	calledLambdas        map[string]bool               // Track which user lambdas are called
-	unknownFunctions     map[string]bool               // Track functions called but not defined
-	callOrder            []string                      // Track order of function calls
-	currentFunction      string                        // Currently compiling function (for dependency tracking)
-	depGraph             *DependencyGraph              // Function dependency graph for DCE
-	cFFIFunctions        map[string]string             // Track C FFI calls: function -> library
-	dynamicLibraries     map[string]bool               // Track which dynamic libraries are needed
-	cImports             map[string]string             // Track C imports: alias -> library name
-	cLibHandles          map[string]string             // Track library handles: library -> handle var name
-	cConstants           map[string]*CHeaderConstants  // Track C constants: alias -> constants
-	cFunctionLibs        map[string]string             // Track which library each C function belongs to: function -> library
-	stringCounter        int                           // Counter for unique string labels
-	stackOffset          int                           // Current stack offset for variables (logical)
-	maxStackOffset       int                           // Maximum stack offset reached (for frame allocation)
-	runtimeStack         int                           // Actual runtime stack usage (updated during compilation)
-	loopBaseOffsets      map[int]int                   // Loop label -> stackOffset before loop body (for state calculation)
-	labelCounter         int                           // Counter for unique labels (if/else, loops, etc)
-	lambdaCounter        int                           // Counter for unique lambda function names
-	activeLoops          []LoopInfo                    // Stack of active loops (for @N jump resolution)
-	lambdaFuncs          []LambdaFunc                  // List of lambda functions to generate
-	patternLambdaFuncs   []PatternLambdaFunc           // List of pattern lambda functions to generate
-	lambdaOffsets        map[string]int                // Lambda name -> offset in .text
-	currentLambda        *LambdaFunc                   // Currently compiling lambda (for "me" self-reference)
-	lambdaBodyStart      int                           // Offset where lambda body starts (for tail recursion)
-	hasExplicitExit      bool                          // Track if program contains explicit exit() call
-	debug                bool                          // Enable debug output (set via DEBUG env var)
-	verbose              bool                          // Enable verbose output
-	cContext             bool                          // When true, compile expressions for C FFI (affects strings, pointers, ints)
-	currentArena         int                           // Current arena index (starts at 1 for global arena = meta-arena[0])
-	usesArenas           bool                          // Track if program uses any arena blocks
-	arenaStack           []ArenaScope                  // Stack of active arena scopes
-	globalArenaInit      bool                          // Track if global arena has been initialized
-	arenaInitialized     bool                          // Track if arena system was initialized
-	importedFunctions    []string                      // Track imported C functions (malloc, free, etc.)
-	cacheEnabledLambdas  map[string]bool               // Track which lambdas use cme
-	deferredExprs        [][]Expression                // Stack of deferred expressions per scope (LIFO order)
-	memoCaches           map[string]bool               // Track memoization caches that need storage allocation
-	currentAssignName    string                        // Name of variable being assigned (for lambda naming)
-	inTailPosition       bool                          // True when compiling expression in tail position
-	hotFunctions                  map[string]bool               // Track hot-reloadable functions
-	hotFunctionTable              map[string]int
-	hotTableRodataOffset          int
-	tailCallsOptimized            int  // Count of tail calls optimized
-	nonTailCalls                  int  // Count of non-tail recursive calls
-	currentlyGeneratingLambda     string // Track which lambda we're currently generating (for nested lambda DCE)
+	eb                        *ExecutableBuilder
+	out                       *Out
+	platform                  Platform                      // Target platform (arch + OS)
+	variables                 map[string]int                // variable name -> stack offset
+	mutableVars               map[string]bool               // variable name -> is mutable
+	lambdaVars                map[string]bool               // variable name -> is lambda/function
+	parentVariables           map[string]bool               // Track parent-scope vars in parallel loops (use r11 instead of rbp)
+	varTypes                  map[string]string             // variable name -> "map" or "list" (legacy)
+	varTypeInfo               map[string]*C67Type           // variable name -> type annotation (new type system)
+	functionSignatures        map[string]*FunctionSignature // function name -> signature (params, variadic)
+	sourceCode                string                        // Store source for recompilation
+	usedFunctions             map[string]bool               // Track which functions are called
+	calledLambdas             map[string]bool               // Track which user lambdas are called
+	unknownFunctions          map[string]bool               // Track functions called but not defined
+	callOrder                 []string                      // Track order of function calls
+	currentFunction           string                        // Currently compiling function (for dependency tracking)
+	depGraph                  *DependencyGraph              // Function dependency graph for DCE
+	cFFIFunctions             map[string]string             // Track C FFI calls: function -> library
+	dynamicLibraries          map[string]bool               // Track which dynamic libraries are needed
+	cImports                  map[string]string             // Track C imports: alias -> library name
+	cLibHandles               map[string]string             // Track library handles: library -> handle var name
+	cConstants                map[string]*CHeaderConstants  // Track C constants: alias -> constants
+	cFunctionLibs             map[string]string             // Track which library each C function belongs to: function -> library
+	stringCounter             int                           // Counter for unique string labels
+	stackOffset               int                           // Current stack offset for variables (logical)
+	maxStackOffset            int                           // Maximum stack offset reached (for frame allocation)
+	runtimeStack              int                           // Actual runtime stack usage (updated during compilation)
+	loopBaseOffsets           map[int]int                   // Loop label -> stackOffset before loop body (for state calculation)
+	labelCounter              int                           // Counter for unique labels (if/else, loops, etc)
+	lambdaCounter             int                           // Counter for unique lambda function names
+	activeLoops               []LoopInfo                    // Stack of active loops (for @N jump resolution)
+	lambdaFuncs               []LambdaFunc                  // List of lambda functions to generate
+	patternLambdaFuncs        []PatternLambdaFunc           // List of pattern lambda functions to generate
+	lambdaOffsets             map[string]int                // Lambda name -> offset in .text
+	currentLambda             *LambdaFunc                   // Currently compiling lambda (for "me" self-reference)
+	lambdaBodyStart           int                           // Offset where lambda body starts (for tail recursion)
+	hasExplicitExit           bool                          // Track if program contains explicit exit() call
+	debug                     bool                          // Enable debug output (set via DEBUG env var)
+	verbose                   bool                          // Enable verbose output
+	cContext                  bool                          // When true, compile expressions for C FFI (affects strings, pointers, ints)
+	currentArena              int                           // Current arena index (starts at 1 for global arena = meta-arena[0])
+	usesArenas                bool                          // Track if program uses any arena blocks
+	arenaStack                []ArenaScope                  // Stack of active arena scopes
+	globalArenaInit           bool                          // Track if global arena has been initialized
+	arenaInitialized          bool                          // Track if arena system was initialized
+	importedFunctions         []string                      // Track imported C functions (malloc, free, etc.)
+	cacheEnabledLambdas       map[string]bool               // Track which lambdas use cme
+	deferredExprs             [][]Expression                // Stack of deferred expressions per scope (LIFO order)
+	memoCaches                map[string]bool               // Track memoization caches that need storage allocation
+	currentAssignName         string                        // Name of variable being assigned (for lambda naming)
+	inTailPosition            bool                          // True when compiling expression in tail position
+	hotFunctions              map[string]bool               // Track hot-reloadable functions
+	hotFunctionTable          map[string]int
+	hotTableRodataOffset      int
+	tailCallsOptimized        int    // Count of tail calls optimized
+	nonTailCalls              int    // Count of non-tail recursive calls
+	currentlyGeneratingLambda string // Track which lambda we're currently generating (for nested lambda DCE)
 
 	mainCalledAtTopLevel bool // Track if main() is explicitly called in top-level code
 
@@ -7309,7 +7309,7 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 				fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unreachable functions: %v\n", uncalled)
 			}
 		}
-		
+
 		lambda := fc.lambdaFuncs[i]
 
 		// Skip unreachable lambdas (DCE using dependency graph)
@@ -7319,7 +7319,7 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 			}
 			continue
 		}
-		
+
 		// Mark that we're compiling this lambda (for nested lambda discovery)
 		fc.currentlyGeneratingLambda = lambda.Name
 
@@ -7990,6 +7990,7 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "DEBUG DCE: Reachable functions from dependency graph: %d\n", len(reachable))
 		fmt.Fprintf(os.Stderr, "DEBUG: Used functions after DCE: %v\n", fc.usedFunctions)
+		fmt.Fprintf(os.Stderr, "DEBUG: Reachable functions: %v\n", reachable)
 	}
 
 	// Arena runtime functions are generated inline below (_c67_arena_create, alloc, etc)
@@ -8951,7 +8952,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PopReg("rbx")
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
+	} // end if _c67_string_eq used
 
+	// String manipulation functions (upper, lower, trim) - only generate if used
+	if fc.usedFunctions["upper"] || fc.usedFunctions["lower"] || fc.usedFunctions["trim"] {
 		// Generate upper_string(c67_string_ptr) -> uppercase_c67_string_ptr
 		// Converts a C67 string to uppercase
 		// Argument: rdi = C67 string pointer (as integer)
@@ -9350,7 +9354,7 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PopReg("rbx")
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
-	} // end if _c67_string_eq used
+	} // end if upper/lower/trim used
 
 	// Generate arena functions only if arenas are actually used
 	if fc.usesArenas {
@@ -9681,323 +9685,323 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	// Only generate if arenas are enabled
 	if fc.usesArenas {
 		// Generate _c67_list_cons(element_float, list_ptr_float) -> new_list_ptr
-	// LINKED LIST implementation - creates a cons cell: [head|tail]
-	// Arguments: rdi = element (as float64 bits), rsi = tail pointer (as float64 bits, 0.0 = nil)
-	// Returns: rax = pointer to new cons cell (16 bytes)
-	fc.eb.MarkLabel("_c67_list_cons")
+		// LINKED LIST implementation - creates a cons cell: [head|tail]
+		// Arguments: rdi = element (as float64 bits), rsi = tail pointer (as float64 bits, 0.0 = nil)
+		// Returns: rax = pointer to new cons cell (16 bytes)
+		fc.eb.MarkLabel("_c67_list_cons")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
 
-	// Save callee-saved registers
-	fc.out.PushReg("r12")
-	fc.out.PushReg("r13")
+		// Save callee-saved registers
+		fc.out.PushReg("r12")
+		fc.out.PushReg("r13")
 
-	// Align stack: call(8) + push rbp(8) + 2 pushes(16) = 32 bytes (ALIGNED)
-	// Need to subtract 8 to be misaligned by 8 before calling arena_alloc
-	fc.out.SubImmFromReg("rsp", StackSlotSize)
+		// Align stack: call(8) + push rbp(8) + 2 pushes(16) = 32 bytes (ALIGNED)
+		// Need to subtract 8 to be misaligned by 8 before calling arena_alloc
+		fc.out.SubImmFromReg("rsp", StackSlotSize)
 
-	// Save arguments
-	fc.out.MovRegToReg("r12", "rdi") // r12 = element bits (head)
-	fc.out.MovRegToReg("r13", "rsi") // r13 = tail pointer bits
+		// Save arguments
+		fc.out.MovRegToReg("r12", "rdi") // r12 = element bits (head)
+		fc.out.MovRegToReg("r13", "rsi") // r13 = tail pointer bits
 
-	// Allocate 16-byte cons cell from arena (use default arena 0)
-	// Cons cell format: [head: float64][tail: float64] = 16 bytes
-	fc.out.LeaSymbolToReg("rdi", "_c67_arena_meta")
-	fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = meta-arena array pointer
-	fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = arena[0] struct pointer
-	fc.out.MovImmToReg("rsi", "16")     // rsi = 16 bytes
-	fc.trackFunctionCall("_c67_arena_alloc")
-	fc.eb.GenerateCallInstruction("_c67_arena_alloc")
-	// rax now contains pointer to cons cell
+		// Allocate 16-byte cons cell from arena (use default arena 0)
+		// Cons cell format: [head: float64][tail: float64] = 16 bytes
+		fc.out.LeaSymbolToReg("rdi", "_c67_arena_meta")
+		fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = meta-arena array pointer
+		fc.out.MovMemToReg("rdi", "rdi", 0) // rdi = arena[0] struct pointer
+		fc.out.MovImmToReg("rsi", "16")     // rsi = 16 bytes
+		fc.trackFunctionCall("_c67_arena_alloc")
+		fc.eb.GenerateCallInstruction("_c67_arena_alloc")
+		// rax now contains pointer to cons cell
 
-	// Write head (element) at [cell+0]
-	fc.out.SubImmFromReg("rsp", 8)
-	fc.out.MovRegToMem("r12", "rsp", 0)
-	fc.out.MovMemToXmm("xmm0", "rsp", 0)
-	fc.out.AddImmToReg("rsp", 8)
-	fc.out.MovXmmToMem("xmm0", "rax", 0)
+		// Write head (element) at [cell+0]
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToMem("r12", "rsp", 0)
+		fc.out.MovMemToXmm("xmm0", "rsp", 0)
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.MovXmmToMem("xmm0", "rax", 0)
 
-	// Write tail pointer at [cell+8]
-	fc.out.SubImmFromReg("rsp", 8)
-	fc.out.MovRegToMem("r13", "rsp", 0)
-	fc.out.MovMemToXmm("xmm0", "rsp", 0)
-	fc.out.AddImmToReg("rsp", 8)
-	fc.out.MovXmmToMem("xmm0", "rax", 8)
+		// Write tail pointer at [cell+8]
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToMem("r13", "rsp", 0)
+		fc.out.MovMemToXmm("xmm0", "rsp", 0)
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.MovXmmToMem("xmm0", "rax", 8)
 
-	// Return cons cell pointer in rax
+		// Return cons cell pointer in rax
 
-	// Restore stack alignment
-	fc.out.AddImmToReg("rsp", StackSlotSize)
+		// Restore stack alignment
+		fc.out.AddImmToReg("rsp", StackSlotSize)
 
-	// Restore callee-saved registers
-	fc.out.PopReg("r13")
-	fc.out.PopReg("r12")
+		// Restore callee-saved registers
+		fc.out.PopReg("r13")
+		fc.out.PopReg("r12")
 
-	// Function epilogue
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Function epilogue
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Generate _c67_list_head(list_ptr_float) -> element_float
-	// LINKED LIST implementation - returns head of cons cell
-	// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
-	// Returns: xmm0 = first element (or NaN if empty)
-	fc.eb.MarkLabel("_c67_list_head")
+		// Generate _c67_list_head(list_ptr_float) -> element_float
+		// LINKED LIST implementation - returns head of cons cell
+		// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
+		// Returns: xmm0 = first element (or NaN if empty)
+		fc.eb.MarkLabel("_c67_list_head")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
 
-	// Check if list pointer is NULL (0)
-	fc.out.TestRegReg("rdi", "rdi")
-	fc.out.Emit([]byte{0x75, 0x12}) // jnz +18 (skip NaN generation)
+		// Check if list pointer is NULL (0)
+		fc.out.TestRegReg("rdi", "rdi")
+		fc.out.Emit([]byte{0x75, 0x12}) // jnz +18 (skip NaN generation)
 
-	// Return NaN for empty list (NULL pointer)
-	fc.out.Emit([]byte{0x48, 0xb8})                                     // mov rax, immediate
-	fc.out.Emit([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f}) // NaN bits
-	fc.out.SubImmFromReg("rsp", 8)
-	fc.out.MovRegToMem("rax", "rsp", 0)
-	fc.out.MovMemToXmm("xmm0", "rsp", 0)
-	fc.out.AddImmToReg("rsp", 8)
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Return NaN for empty list (NULL pointer)
+		fc.out.Emit([]byte{0x48, 0xb8})                                     // mov rax, immediate
+		fc.out.Emit([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f}) // NaN bits
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToMem("rax", "rsp", 0)
+		fc.out.MovMemToXmm("xmm0", "rsp", 0)
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Load head (first element) at [cell+0]
-	fc.out.MovMemToXmm("xmm0", "rdi", 0)
+		// Load head (first element) at [cell+0]
+		fc.out.MovMemToXmm("xmm0", "rdi", 0)
 
-	// Function epilogue
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Function epilogue
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Generate _c67_list_tail(list_ptr_float) -> tail_ptr_float
-	// LINKED LIST implementation - returns tail of cons cell (O(1) operation)
-	// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
-	// Returns: xmm0 = tail pointer (as float64, 0.0 = nil)
-	fc.eb.MarkLabel("_c67_list_tail")
+		// Generate _c67_list_tail(list_ptr_float) -> tail_ptr_float
+		// LINKED LIST implementation - returns tail of cons cell (O(1) operation)
+		// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
+		// Returns: xmm0 = tail pointer (as float64, 0.0 = nil)
+		fc.eb.MarkLabel("_c67_list_tail")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
 
-	// Check if list pointer is NULL (0)
-	fc.out.TestRegReg("rdi", "rdi")
-	fc.out.Emit([]byte{0x75, 0x0e}) // jnz +14 (skip returning 0.0)
+		// Check if list pointer is NULL (0)
+		fc.out.TestRegReg("rdi", "rdi")
+		fc.out.Emit([]byte{0x75, 0x0e}) // jnz +14 (skip returning 0.0)
 
-	// Return 0.0 for empty list (NULL pointer)
-	fc.out.XorRegWithReg("rax", "rax")
-	fc.out.SubImmFromReg("rsp", 8)
-	fc.out.MovRegToMem("rax", "rsp", 0)
-	fc.out.MovMemToXmm("xmm0", "rsp", 0)
-	fc.out.AddImmToReg("rsp", 8)
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Return 0.0 for empty list (NULL pointer)
+		fc.out.XorRegWithReg("rax", "rax")
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToMem("rax", "rsp", 0)
+		fc.out.MovMemToXmm("xmm0", "rsp", 0)
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Load tail pointer at [cell+8]
-	fc.out.MovMemToXmm("xmm0", "rdi", 8)
+		// Load tail pointer at [cell+8]
+		fc.out.MovMemToXmm("xmm0", "rdi", 8)
 
-	// Function epilogue
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Function epilogue
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Generate _c67_list_length(list_ptr_float) -> length_int
-	// LINKED LIST implementation - walks list and counts nodes (O(n))
-	// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
-	// Returns: rax = length as int64
-	fc.eb.MarkLabel("_c67_list_length")
+		// Generate _c67_list_length(list_ptr_float) -> length_int
+		// LINKED LIST implementation - walks list and counts nodes (O(n))
+		// Argument: rdi = list pointer (as float64 bits, 0.0 = nil)
+		// Returns: rax = length as int64
+		fc.eb.MarkLabel("_c67_list_length")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
 
-	// Initialize counter
-	fc.out.XorRegWithReg("rax", "rax") // rax = 0 (length counter)
+		// Initialize counter
+		fc.out.XorRegWithReg("rax", "rax") // rax = 0 (length counter)
 
-	// Check if list is empty
-	fc.out.TestRegReg("rdi", "rdi")
-	lengthDoneJump1 := fc.eb.text.Len()
-	fc.out.JumpConditional(JumpEqual, 0) // jz to done
-	lengthDoneEnd1 := fc.eb.text.Len()
+		// Check if list is empty
+		fc.out.TestRegReg("rdi", "rdi")
+		lengthDoneJump1 := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpEqual, 0) // jz to done
+		lengthDoneEnd1 := fc.eb.text.Len()
 
-	// Walk list
-	lengthLoopStart := fc.eb.text.Len()
-	// Increment counter
-	fc.out.IncReg("rax")
-	// Load tail pointer from [rdi+8]
-	fc.out.MovMemToReg("rdi", "rdi", 8)
-	// Check if we've reached end (NULL)
-	fc.out.TestRegReg("rdi", "rdi")
-	jnzOffset := int32(lengthLoopStart - (fc.eb.text.Len() + 6))
-	fc.out.JumpConditional(JumpNotEqual, jnzOffset) // jnz back to loop start
+		// Walk list
+		lengthLoopStart := fc.eb.text.Len()
+		// Increment counter
+		fc.out.IncReg("rax")
+		// Load tail pointer from [rdi+8]
+		fc.out.MovMemToReg("rdi", "rdi", 8)
+		// Check if we've reached end (NULL)
+		fc.out.TestRegReg("rdi", "rdi")
+		jnzOffset := int32(lengthLoopStart - (fc.eb.text.Len() + 6))
+		fc.out.JumpConditional(JumpNotEqual, jnzOffset) // jnz back to loop start
 
-	// Patch the done jump
-	lengthDonePos1 := fc.eb.text.Len()
-	fc.patchJumpImmediate(lengthDoneJump1+2, int32(lengthDonePos1-(lengthDoneEnd1)))
+		// Patch the done jump
+		lengthDonePos1 := fc.eb.text.Len()
+		fc.patchJumpImmediate(lengthDoneJump1+2, int32(lengthDonePos1-(lengthDoneEnd1)))
 
-	// Return length in rax
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Return length in rax
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Generate _c67_list_index(list_ptr_float, index_int) -> element_float
-	// LINKED LIST implementation - walks to index-th node (O(n))
-	// Arguments: rdi = list pointer (as float64 bits), rsi = index (int64)
-	// Returns: xmm0 = element at index (or NaN if out of bounds)
-	fc.eb.MarkLabel("_c67_list_index")
+		// Generate _c67_list_index(list_ptr_float, index_int) -> element_float
+		// LINKED LIST implementation - walks to index-th node (O(n))
+		// Arguments: rdi = list pointer (as float64 bits), rsi = index (int64)
+		// Returns: xmm0 = element at index (or NaN if out of bounds)
+		fc.eb.MarkLabel("_c67_list_index")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
 
-	// Walk to index-th node
-	fc.out.XorRegWithReg("rax", "rax") // rax = 0 (current index)
+		// Walk to index-th node
+		fc.out.XorRegWithReg("rax", "rax") // rax = 0 (current index)
 
-	// Check if list is empty
-	fc.out.TestRegReg("rdi", "rdi")
-	indexOutOfBoundsJump1 := fc.eb.text.Len()
-	fc.out.JumpConditional(JumpEqual, 0) // jz to out of bounds
-	indexOutOfBoundsEnd1 := fc.eb.text.Len()
+		// Check if list is empty
+		fc.out.TestRegReg("rdi", "rdi")
+		indexOutOfBoundsJump1 := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpEqual, 0) // jz to out of bounds
+		indexOutOfBoundsEnd1 := fc.eb.text.Len()
 
-	// Walk loop
-	indexWalkLoopStart := fc.eb.text.Len()
-	// Check if we've reached target index
-	fc.out.CmpRegToReg("rax", "rsi")
-	indexFoundJump := fc.eb.text.Len()
-	fc.out.JumpConditional(JumpEqual, 0) // jz to found
-	indexFoundEnd := fc.eb.text.Len()
+		// Walk loop
+		indexWalkLoopStart := fc.eb.text.Len()
+		// Check if we've reached target index
+		fc.out.CmpRegToReg("rax", "rsi")
+		indexFoundJump := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpEqual, 0) // jz to found
+		indexFoundEnd := fc.eb.text.Len()
 
-	// Not at target yet, move to next node
-	fc.out.IncReg("rax")
-	fc.out.MovMemToReg("rdi", "rdi", 8) // rdi = tail pointer
+		// Not at target yet, move to next node
+		fc.out.IncReg("rax")
+		fc.out.MovMemToReg("rdi", "rdi", 8) // rdi = tail pointer
 
-	// Check if we've reached end
-	fc.out.TestRegReg("rdi", "rdi")
-	indexOutOfBoundsJump2 := fc.eb.text.Len()
-	fc.out.JumpConditional(JumpEqual, 0) // jz to out of bounds
-	indexOutOfBoundsEnd2 := fc.eb.text.Len()
+		// Check if we've reached end
+		fc.out.TestRegReg("rdi", "rdi")
+		indexOutOfBoundsJump2 := fc.eb.text.Len()
+		fc.out.JumpConditional(JumpEqual, 0) // jz to out of bounds
+		indexOutOfBoundsEnd2 := fc.eb.text.Len()
 
-	// Continue walking
-	jmpOffset := int32(indexWalkLoopStart - (fc.eb.text.Len() + 5))
-	fc.out.Emit([]byte{0xe9}) // jmp rel32
-	fc.out.Emit([]byte{byte(jmpOffset), byte(jmpOffset >> 8), byte(jmpOffset >> 16), byte(jmpOffset >> 24)})
+		// Continue walking
+		jmpOffset := int32(indexWalkLoopStart - (fc.eb.text.Len() + 5))
+		fc.out.Emit([]byte{0xe9}) // jmp rel32
+		fc.out.Emit([]byte{byte(jmpOffset), byte(jmpOffset >> 8), byte(jmpOffset >> 16), byte(jmpOffset >> 24)})
 
-	// Found: load head element
-	indexFoundPos := fc.eb.text.Len()
-	fc.patchJumpImmediate(indexFoundJump+2, int32(indexFoundPos-indexFoundEnd))
-	fc.out.MovMemToXmm("xmm0", "rdi", 0)
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Found: load head element
+		indexFoundPos := fc.eb.text.Len()
+		fc.patchJumpImmediate(indexFoundJump+2, int32(indexFoundPos-indexFoundEnd))
+		fc.out.MovMemToXmm("xmm0", "rdi", 0)
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Out of bounds: return NaN
-	indexOutOfBoundsPos := fc.eb.text.Len()
-	fc.patchJumpImmediate(indexOutOfBoundsJump1+2, int32(indexOutOfBoundsPos-indexOutOfBoundsEnd1))
-	fc.patchJumpImmediate(indexOutOfBoundsJump2+2, int32(indexOutOfBoundsPos-indexOutOfBoundsEnd2))
-	fc.out.Emit([]byte{0x48, 0xb8})                                     // mov rax, immediate
-	fc.out.Emit([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f}) // NaN bits
-	fc.out.SubImmFromReg("rsp", 8)
-	fc.out.MovRegToMem("rax", "rsp", 0)
-	fc.out.MovMemToXmm("xmm0", "rsp", 0)
-	fc.out.AddImmToReg("rsp", 8)
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Out of bounds: return NaN
+		indexOutOfBoundsPos := fc.eb.text.Len()
+		fc.patchJumpImmediate(indexOutOfBoundsJump1+2, int32(indexOutOfBoundsPos-indexOutOfBoundsEnd1))
+		fc.patchJumpImmediate(indexOutOfBoundsJump2+2, int32(indexOutOfBoundsPos-indexOutOfBoundsEnd2))
+		fc.out.Emit([]byte{0x48, 0xb8})                                     // mov rax, immediate
+		fc.out.Emit([]byte{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xf8, 0x7f}) // NaN bits
+		fc.out.SubImmFromReg("rsp", 8)
+		fc.out.MovRegToMem("rax", "rsp", 0)
+		fc.out.MovMemToXmm("xmm0", "rsp", 0)
+		fc.out.AddImmToReg("rsp", 8)
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 
-	// Generate _c67_list_update(list_ptr, index, value, arena_ptr) -> new_list_ptr
-	// Updates a list element at the given index (functional - returns new list)
-	// Arguments: rdi = list_ptr, rsi = index (integer), xmm0 = new value (float64), rdx = arena_ptr
-	// Returns: rax = new list pointer
-	// Uses specified arena for allocation
-	fc.eb.MarkLabel("_c67_list_update")
+		// Generate _c67_list_update(list_ptr, index, value, arena_ptr) -> new_list_ptr
+		// Updates a list element at the given index (functional - returns new list)
+		// Arguments: rdi = list_ptr, rsi = index (integer), xmm0 = new value (float64), rdx = arena_ptr
+		// Returns: rax = new list pointer
+		// Uses specified arena for allocation
+		fc.eb.MarkLabel("_c67_list_update")
 
-	// Function prologue
-	fc.out.PushReg("rbp")
-	fc.out.MovRegToReg("rbp", "rsp")
-	fc.out.PushReg("rbx") // old list ptr
-	fc.out.PushReg("r12") // new list ptr
-	fc.out.PushReg("r13") // target index
-	fc.out.PushReg("r14") // new value bits
-	fc.out.PushReg("r15") // arena ptr
+		// Function prologue
+		fc.out.PushReg("rbp")
+		fc.out.MovRegToReg("rbp", "rsp")
+		fc.out.PushReg("rbx") // old list ptr
+		fc.out.PushReg("r12") // new list ptr
+		fc.out.PushReg("r13") // target index
+		fc.out.PushReg("r14") // new value bits
+		fc.out.PushReg("r15") // arena ptr
 
-	// Stack: call(8) + rbp(8) + 5 regs(40) = 56 bytes (aligned)
-	fc.out.SubImmFromReg("rsp", StackSlotSize)
+		// Stack: call(8) + rbp(8) + 5 regs(40) = 56 bytes (aligned)
+		fc.out.SubImmFromReg("rsp", StackSlotSize)
 
-	// Save arguments
-	fc.out.MovRegToReg("rbx", "rdi") // rbx = old list ptr
-	fc.out.MovRegToReg("r13", "rsi") // r13 = target index
-	fc.out.MovRegToReg("r15", "rdx") // r15 = arena ptr
-	// Save xmm0 (new value) to r14
-	fc.out.MovqXmmToReg("r14", "xmm0")
+		// Save arguments
+		fc.out.MovRegToReg("rbx", "rdi") // rbx = old list ptr
+		fc.out.MovRegToReg("r13", "rsi") // r13 = target index
+		fc.out.MovRegToReg("r15", "rdx") // r15 = arena ptr
+		// Save xmm0 (new value) to r14
+		fc.out.MovqXmmToReg("r14", "xmm0")
 
-	// Get length from old list
-	fc.out.MovMemToXmm("xmm0", "rbx", 0)
-	fc.out.Cvttsd2si("rcx", "xmm0") // rcx = length
+		// Get length from old list
+		fc.out.MovMemToXmm("xmm0", "rbx", 0)
+		fc.out.Cvttsd2si("rcx", "xmm0") // rcx = length
 
-	// Calculate allocation size: 8 + length * 8
-	fc.out.MovRegToReg("rax", "rcx")
-	fc.out.MulRegWithImm("rax", 8)
-	fc.out.AddImmToReg("rax", 8)
+		// Calculate allocation size: 8 + length * 8
+		fc.out.MovRegToReg("rax", "rcx")
+		fc.out.MulRegWithImm("rax", 8)
+		fc.out.AddImmToReg("rax", 8)
 
-	// Allocate from specified arena
-	// Call _c67_arena_alloc(rdi=arena_ptr, rsi=size)
-	fc.out.MovRegToReg("rdi", "r15") // arena ptr in rdi
-	fc.out.MovRegToReg("rsi", "rax") // size in rsi
-	fc.trackFunctionCall("_c67_arena_alloc")
-	fc.eb.GenerateCallInstruction("_c67_arena_alloc")
-	fc.out.MovRegToReg("r12", "rax") // r12 = new list ptr
+		// Allocate from specified arena
+		// Call _c67_arena_alloc(rdi=arena_ptr, rsi=size)
+		fc.out.MovRegToReg("rdi", "r15") // arena ptr in rdi
+		fc.out.MovRegToReg("rsi", "rax") // size in rsi
+		fc.trackFunctionCall("_c67_arena_alloc")
+		fc.eb.GenerateCallInstruction("_c67_arena_alloc")
+		fc.out.MovRegToReg("r12", "rax") // r12 = new list ptr
 
-	// Write length to new list
-	fc.out.Cvtsi2sd("xmm0", "rcx")
-	fc.out.MovXmmToMem("xmm0", "r12", 0)
+		// Write length to new list
+		fc.out.Cvtsi2sd("xmm0", "rcx")
+		fc.out.MovXmmToMem("xmm0", "r12", 0)
 
-	// Restore new value to xmm2 for use in loop
-	fc.out.MovqRegToXmm("xmm2", "r14")
+		// Restore new value to xmm2 for use in loop
+		fc.out.MovqRegToXmm("xmm2", "r14")
 
-	// Simple loop to copy all elements, updating target index
-	// Use r8 as loop counter (0..length-1)
-	fc.out.XorRegWithReg("r8", "r8") // r8 = 0
+		// Simple loop to copy all elements, updating target index
+		// Use r8 as loop counter (0..length-1)
+		fc.out.XorRegWithReg("r8", "r8") // r8 = 0
 
-	// Copy loop - iterate over all elements
-	fc.eb.MarkLabel("_list_update_loop")
-	fc.out.CmpRegToReg("r8", "rcx")
-	fc.out.Emit([]byte{0x7d, 0x2c}) // jge +44 to end
+		// Copy loop - iterate over all elements
+		fc.eb.MarkLabel("_list_update_loop")
+		fc.out.CmpRegToReg("r8", "rcx")
+		fc.out.Emit([]byte{0x7d, 0x2c}) // jge +44 to end
 
-	// Calculate byte offset: r8 * 8 + 8
-	fc.out.MovRegToReg("rax", "r8")
-	fc.out.ShlRegByImm("rax", 3)
-	fc.out.AddImmToReg("rax", 8)
+		// Calculate byte offset: r8 * 8 + 8
+		fc.out.MovRegToReg("rax", "r8")
+		fc.out.ShlRegByImm("rax", 3)
+		fc.out.AddImmToReg("rax", 8)
 
-	// Check if this is the target index
-	fc.out.CmpRegToReg("r8", "r13")
-	fc.out.Emit([]byte{0x75, 0x0d}) // jne +13 (copy old value)
+		// Check if this is the target index
+		fc.out.CmpRegToReg("r8", "r13")
+		fc.out.Emit([]byte{0x75, 0x0d}) // jne +13 (copy old value)
 
-	// This is target index: store new value (in xmm2)
-	fc.out.MovRegToReg("rsi", "rax")
-	fc.out.AddRegToReg("rsi", "r12")
-	fc.out.MovXmmToMem("xmm2", "rsi", 0)
-	fc.out.Emit([]byte{0xeb, 0x11}) // jmp +17 (to increment)
+		// This is target index: store new value (in xmm2)
+		fc.out.MovRegToReg("rsi", "rax")
+		fc.out.AddRegToReg("rsi", "r12")
+		fc.out.MovXmmToMem("xmm2", "rsi", 0)
+		fc.out.Emit([]byte{0xeb, 0x11}) // jmp +17 (to increment)
 
-	// Not target: copy old value
-	fc.out.MovRegToReg("rsi", "rax")
-	fc.out.AddRegToReg("rsi", "rbx")
-	fc.out.MovMemToXmm("xmm3", "rsi", 0)
-	fc.out.MovRegToReg("rsi", "rax")
-	fc.out.AddRegToReg("rsi", "r12")
-	fc.out.MovXmmToMem("xmm3", "rsi", 0)
+		// Not target: copy old value
+		fc.out.MovRegToReg("rsi", "rax")
+		fc.out.AddRegToReg("rsi", "rbx")
+		fc.out.MovMemToXmm("xmm3", "rsi", 0)
+		fc.out.MovRegToReg("rsi", "rax")
+		fc.out.AddRegToReg("rsi", "r12")
+		fc.out.MovXmmToMem("xmm3", "rsi", 0)
 
-	// Increment and loop back
-	fc.out.AddImmToReg("r8", 1)
-	fc.out.Emit([]byte{0xeb, 0xca}) // jmp -54 (back to loop start)
+		// Increment and loop back
+		fc.out.AddImmToReg("r8", 1)
+		fc.out.Emit([]byte{0xeb, 0xca}) // jmp -54 (back to loop start)
 
-	// Return new list pointer
-	fc.out.MovRegToReg("rax", "r12")
+		// Return new list pointer
+		fc.out.MovRegToReg("rax", "r12")
 
-	// Restore stack and registers
-	fc.out.AddImmToReg("rsp", StackSlotSize)
-	fc.out.PopReg("r15")
-	fc.out.PopReg("r14")
-	fc.out.PopReg("r13")
-	fc.out.PopReg("r12")
-	fc.out.PopReg("rbx")
-	fc.out.PopReg("rbp")
-	fc.out.Ret()
+		// Restore stack and registers
+		fc.out.AddImmToReg("rsp", StackSlotSize)
+		fc.out.PopReg("r15")
+		fc.out.PopReg("r14")
+		fc.out.PopReg("r13")
+		fc.out.PopReg("r12")
+		fc.out.PopReg("rbx")
+		fc.out.PopReg("rbp")
+		fc.out.Ret()
 	} // end if usesArenas (list functions)
 
 	// Generate _c67_string_println(string_ptr) - prints string followed by newline
