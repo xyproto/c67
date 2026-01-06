@@ -101,6 +101,7 @@ type C67Compiler struct {
 	usesArenas           bool                          // Track if program uses any arena blocks
 	arenaStack           []ArenaScope                  // Stack of active arena scopes
 	globalArenaInit      bool                          // Track if global arena has been initialized
+	arenaInitialized     bool                          // Track if arena system was initialized
 	importedFunctions    []string                      // Track imported C functions (malloc, free, etc.)
 	cacheEnabledLambdas  map[string]bool               // Track which lambdas use cme
 	deferredExprs        [][]Expression                // Stack of deferred expressions per scope (LIFO order)
@@ -939,7 +940,8 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 
 	// Cleanup all arenas in meta-arena at program exit
 	// Skip on Windows to avoid Wine compatibility issues (OS will clean up on process exit anyway)
-	if fc.eb.target.OS() != OSWindows {
+	// Skip if arena was never initialized (simple programs)
+	if fc.eb.target.OS() != OSWindows && fc.arenaInitialized {
 		fc.cleanupAllArenas()
 	}
 

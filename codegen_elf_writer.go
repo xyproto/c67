@@ -150,6 +150,10 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 
 		// Get complete binary (header + rodata + data + text)
 		elfBytes := fc.eb.Bytes()
+		
+		// Detect bad addresses (unpatched relocations)
+		fc.detectBadAddresses(elfBytes)
+		
 		if err := os.WriteFile(outputPath, elfBytes, 0755); err != nil {
 			return fmt.Errorf("failed to write executable: %v", err)
 		}
