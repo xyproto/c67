@@ -19,7 +19,8 @@
 - ✅ Fixed DCE to handle nested lambdas and higher-order functions
 - ✅ Track all function calls in dependency graph (including global scope)
 - ✅ Properly handle lambdas returned as values (closures)
-- ✅ All tests passing (except pre-existing Windows PE issue)
+- ✅ Fixed Windows PE compilation issue with arena functions
+- ✅ All tests passing including Windows PE
 - ✅ Multi-file compilation now works correctly (add.c67 + hello.c67)
 
 ## Binary Size Optimization
@@ -257,13 +258,4 @@ Remaining issues:
 - Static printf not implemented (would enable true static mode)
 
 Current state: All functionality working, tests passing, but binary sizes not yet optimized.
-## Known Issues
-
-### Windows PE Compilation  
-The Windows PE test (TestWindowsCompilation) currently fails with '_c67_arena_alloc not found' error.
-This is a regression introduced by the DCE changes. The arena functions are not being generated
-for Windows targets even though fc.usesArenas should be true. Needs investigation of why
-usesArenas is not set during Windows compilation or why arena functions aren't generated.
-
-Workaround: Skip Windows test or compile without DCE for Windows targets.
 
