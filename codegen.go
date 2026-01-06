@@ -12297,8 +12297,8 @@ func (fc *C67Compiler) compileCFunctionCall(libName string, funcName string, arg
 		}
 	}
 
-	// Special case for c. namespace (libName is empty): try to find signature in common C libraries
-	if funcSig == nil && libName == "" {
+	// Special case for c. namespace (libName is empty or "c"): try to find signature in common C libraries
+	if funcSig == nil && (libName == "" || libName == "c") {
 		// Try to find the function in any loaded C library constants
 		for alias, constants := range fc.cConstants {
 			if sig, found := constants.Functions[funcName]; found {
@@ -12593,6 +12593,10 @@ func (fc *C67Compiler) compileCFunctionCall(libName string, funcName string, arg
 				if isFloatParam {
 					if floatRegIdx < len(floatArgRegs) {
 						// Load into float register
+						if VerboseMode {
+							fmt.Fprintf(os.Stderr, "Loading float arg %d from stack offset %d into %s\n",
+								i, i*8, floatArgRegs[floatRegIdx])
+						}
 						fc.out.MovMemToXmm(floatArgRegs[floatRegIdx], "rsp", i*8)
 						floatRegIdx++
 					} else {
