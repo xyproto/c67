@@ -110,11 +110,12 @@ type C67Compiler struct {
 	memoCaches           map[string]bool               // Track memoization caches that need storage allocation
 	currentAssignName    string                        // Name of variable being assigned (for lambda naming)
 	inTailPosition       bool                          // True when compiling expression in tail position
-	hotFunctions         map[string]bool               // Track hot-reloadable functions
-	hotFunctionTable     map[string]int
-	hotTableRodataOffset int
-	tailCallsOptimized   int // Count of tail calls optimized
-	nonTailCalls         int // Count of non-tail recursive calls
+	hotFunctions                  map[string]bool               // Track hot-reloadable functions
+	hotFunctionTable              map[string]int
+	hotTableRodataOffset          int
+	tailCallsOptimized            int  // Count of tail calls optimized
+	nonTailCalls                  int  // Count of non-tail recursive calls
+	currentlyGeneratingLambda     string // Track which lambda we're currently generating (for nested lambda DCE)
 
 	mainCalledAtTopLevel bool // Track if main() is explicitly called in top-level code
 
@@ -5806,6 +5807,14 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 			IsPure:           isPure,
 		})
 
+		// Mark nested lambdas as reachable if we're inside a reachable lambda
+		if fc.currentlyGeneratingLambda != "" {
+			fc.depGraph.AddContains(fc.currentlyGeneratingLambda, funcName)
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "DEBUG DCE: Lambda '%s' is nested inside '%s'\n", funcName, fc.currentlyGeneratingLambda)
+			}
+		}
+
 		// For closures with captured variables, we need runtime allocation
 		// For simple lambdas, use a static closure object with NULL environment
 		if e.IsNestedLambda && len(e.CapturedVars) > 0 {
@@ -7277,55 +7286,42 @@ func (fc *C67Compiler) predeclareLambdaSymbols() {
 }
 
 func (fc *C67Compiler) generateLambdaFunctions() {
-	// Dead code elimination: collect all function calls from the program
-	// to determine which lambdas are actually used
-	calls := make(map[string]bool)
-
-	// Collect calls from all statements (including lambdas)
-	for _, lambda := range fc.lambdaFuncs {
-		collectFunctionCalls(lambda.Body, calls)
-	}
-
-	// Mark called lambdas
-	for funcName := range calls {
-		fc.calledLambdas[funcName] = true
-	}
-
 	// Always include "main" if it exists
 	fc.calledLambdas["main"] = true
 
-	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "DEBUG DCE: Total lambdas=%d, Called lambdas=%d\n",
-			len(fc.lambdaFuncs), len(fc.calledLambdas))
-		if len(fc.calledLambdas) < len(fc.lambdaFuncs) {
-			uncalled := []string{}
-			for _, lambda := range fc.lambdaFuncs {
-				if !fc.calledLambdas[lambda.Name] {
-					uncalled = append(uncalled, lambda.Name)
-				}
-			}
-			fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unused functions: %v\n", uncalled)
-		}
-	}
-
 	// Use index-based loop to handle lambdas added during iteration (nested lambdas)
 	for i := 0; i < len(fc.lambdaFuncs); i++ {
+		// Dead code elimination using dependency graph
+		// Recompute reachability each iteration to handle newly discovered nested lambdas
+		reachable := fc.depGraph.GetReachable()
+		reachable["main"] = true
+
+		if VerboseMode && i == 0 {
+			fmt.Fprintf(os.Stderr, "DEBUG DCE: Total lambdas=%d, Reachable functions=%d\n",
+				len(fc.lambdaFuncs), len(reachable))
+			if len(reachable) < len(fc.lambdaFuncs) {
+				uncalled := []string{}
+				for _, lam := range fc.lambdaFuncs {
+					if !reachable[lam.Name] {
+						uncalled = append(uncalled, lam.Name)
+					}
+				}
+				fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unreachable functions: %v\n", uncalled)
+			}
+		}
+		
 		lambda := fc.lambdaFuncs[i]
 
-		// TEMPORARILY DISABLE DCE - it breaks nested lambdas and higher-order functions
-		// TODO: Fix DCE to handle:
-		// - Lambdas returned as values (not called)
-		// - Higher-order functions
-		// - Proper transitive closure of dependencies
-		skipDCE := true
-
-		// Skip unused lambdas (DCE)
-		if !skipDCE && !fc.calledLambdas[lambda.Name] {
+		// Skip unreachable lambdas (DCE using dependency graph)
+		if !reachable[lambda.Name] {
 			if VerboseMode {
-				fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unused lambda '%s'\n", lambda.Name)
+				fmt.Fprintf(os.Stderr, "DEBUG DCE: Skipping unreachable lambda '%s'\n", lambda.Name)
 			}
 			continue
 		}
+		
+		// Mark that we're compiling this lambda (for nested lambda discovery)
+		fc.currentlyGeneratingLambda = lambda.Name
 
 		if VerboseMode {
 			fmt.Fprintf(os.Stderr, "DEBUG generateLambdaFunctions: generating lambda '%s' with body type %T\n", lambda.Name, lambda.Body)
@@ -7610,6 +7606,7 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 
 		// Clear lambda context
 		fc.currentLambda = nil
+		fc.currentlyGeneratingLambda = ""
 
 		// Function epilogue with proper calling convention
 		// Restore rbx from fixed location
@@ -18239,6 +18236,60 @@ func (fc *C67Compiler) callMallocAligned(sizeReg string, pushCount int) {
 	fc.patchJumpImmediate(okJumpPos+2, okOffset)
 
 	// Result is in rax
+}
+
+func (fc *C67Compiler) buildLambdaContainmentGraph() {
+	// Build a map of all lambda names for quick lookup
+	lambdaNames := make(map[string]bool)
+	for _, lambda := range fc.lambdaFuncs {
+		lambdaNames[lambda.Name] = true
+	}
+	
+	// For each lambda, scan its body for assignment statements that define other lambdas
+	for _, parent := range fc.lambdaFuncs {
+		fc.findNestedLambdas(parent.Body, parent.Name, lambdaNames)
+	}
+}
+
+func (fc *C67Compiler) findNestedLambdas(expr Expression, parentName string, lambdaNames map[string]bool) {
+	if expr == nil {
+		return
+	}
+	
+	switch e := expr.(type) {
+	case *BlockExpr:
+		for _, stmt := range e.Statements {
+			fc.findNestedLambdasInStmt(stmt, parentName, lambdaNames)
+		}
+	case *MatchExpr:
+		for _, clause := range e.Clauses {
+			fc.findNestedLambdas(clause.Result, parentName, lambdaNames)
+		}
+		if e.DefaultExpr != nil {
+			fc.findNestedLambdas(e.DefaultExpr, parentName, lambdaNames)
+		}
+	}
+}
+
+func (fc *C67Compiler) findNestedLambdasInStmt(stmt Statement, parentName string, lambdaNames map[string]bool) {
+	switch s := stmt.(type) {
+	case *AssignStmt:
+		// Check if this assignment creates a lambda that's in our lambda list
+		if lambdaNames[s.Name] && s.Name != parentName {
+			fc.depGraph.AddContains(parentName, s.Name)
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "DEBUG DCE: Found nested lambda '%s' inside '%s'\n", s.Name, parentName)
+			}
+		}
+		// Recursively search the value expression
+		fc.findNestedLambdas(s.Value, parentName, lambdaNames)
+	case *ExpressionStmt:
+		fc.findNestedLambdas(s.Expr, parentName, lambdaNames)
+	case *LoopStmt:
+		for _, bodyStmt := range s.Body {
+			fc.findNestedLambdasInStmt(bodyStmt, parentName, lambdaNames)
+		}
+	}
 }
 
 // collectFunctionCalls walks an expression and collects all function calls
