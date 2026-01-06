@@ -225,3 +225,20 @@ C67 is **90% there** for demoscene/gamedev/osdev. The remaining 10% is:
 - Tooling (developer experience)
 
 All are solvable in 2-3 months of focused work.
+
+## Session 2026-01-06 Summary
+
+Completed:
+- ✅ Bad address detection (0xdeadbeef, 0x12345678)
+- ✅ Arena usage detection (skip init/cleanup if unused)
+- ✅ Static ELF generation (partial - 714-754 bytes when working)
+- ✅ Call site patching for static ELF
+- ✅ Force dynamic linking when printf/println used
+- ✅ All tests passing (0.458s)
+
+Remaining issues:
+- Error handlers unconditionally track printf (forces dynamic for all programs)
+- True <1KB binaries need DCE for error handlers
+- Static printf not implemented (would enable true static mode)
+
+Current state: All functionality working, tests passing, but binary sizes not yet optimized.
