@@ -9675,9 +9675,12 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
-	} // end if usesArenas (will reopen for arena_ensure_capacity later)
+	} // end if usesArenas
 
-	// Generate _c67_list_cons(element_float, list_ptr_float) -> new_list_ptr
+	// List manipulation functions require arenas for memory allocation
+	// Only generate if arenas are enabled
+	if fc.usesArenas {
+		// Generate _c67_list_cons(element_float, list_ptr_float) -> new_list_ptr
 	// LINKED LIST implementation - creates a cons cell: [head|tail]
 	// Arguments: rdi = element (as float64 bits), rsi = tail pointer (as float64 bits, 0.0 = nil)
 	// Returns: rax = pointer to new cons cell (16 bytes)
@@ -9995,6 +9998,7 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	fc.out.PopReg("rbx")
 	fc.out.PopReg("rbp")
 	fc.out.Ret()
+	} // end if usesArenas (list functions)
 
 	// Generate _c67_string_println(string_ptr) - prints string followed by newline
 	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
