@@ -74,6 +74,8 @@ type C67Compiler struct {
 	calledLambdas        map[string]bool               // Track which user lambdas are called
 	unknownFunctions     map[string]bool               // Track functions called but not defined
 	callOrder            []string                      // Track order of function calls
+	currentFunction      string                        // Currently compiling function (for dependency tracking)
+	depGraph             *DependencyGraph              // Function dependency graph for DCE
 	cFFIFunctions        map[string]string             // Track C FFI calls: function -> library
 	dynamicLibraries     map[string]bool               // Track which dynamic libraries are needed
 	cImports             map[string]string             // Track C imports: alias -> library name
@@ -218,6 +220,8 @@ func NewC67Compiler(platform Platform, verbose bool) (*C67Compiler, error) {
 		calledLambdas:       make(map[string]bool),
 		unknownFunctions:    make(map[string]bool),
 		callOrder:           []string{},
+		currentFunction:     "global",
+		depGraph:            NewDependencyGraph(),
 		cFFIFunctions:       make(map[string]string),
 		dynamicLibraries:    make(map[string]bool),
 		cImports:            make(map[string]string),
@@ -689,6 +693,10 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	// Clear moved variables tracking for this compilation
 	fc.movedVars = make(map[string]bool)
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
+
+	// Mark global code and main as entry points for DCE
+	fc.depGraph.MarkRoot("global")
+	fc.depGraph.MarkRoot("main")
 
 	// Arenas enabled on-demand when needed (string concat, list operations, etc.)
 
@@ -7332,6 +7340,11 @@ func (fc *C67Compiler) generateLambdaFunctions() {
 		// Mark the start of the lambda function with a label (again, to update offset)
 		fc.eb.MarkLabel(lambda.Name)
 
+		// Track current function for dependency graph
+		oldFunction := fc.currentFunction
+		fc.currentFunction = lambda.Name
+		defer func() { fc.currentFunction = oldFunction }()
+
 		// Function prologue with proper calling convention
 		fc.out.PushReg("rbp")
 		fc.out.MovRegToReg("rbp", "rsp")
@@ -7957,13 +7970,34 @@ func (fc *C67Compiler) generateCacheInsert() {
 }
 
 func (fc *C67Compiler) generateRuntimeHelpers() {
+	// Apply DCE based on dependency graph
+	reachable := fc.depGraph.GetReachable()
+
+	// Internal runtime functions that should always be included if used
+	internalRuntimeFuncs := map[string]bool{
+		"_c67_arena_create":          true,
+		"_c67_arena_alloc":           true,
+		"_c67_arena_destroy":         true,
+		"_c67_arena_reset":           true,
+		"_c67_arena_ensure_capacity": true,
+	}
+
+	// Don't remove internal runtime functions from usedFunctions
+	// They're generated conditionally based on fc.usesArenas
+	for funcName := range fc.usedFunctions {
+		if !reachable[funcName] && !internalRuntimeFuncs[funcName] {
+			delete(fc.usedFunctions, funcName)
+		}
+	}
+
+	if VerboseMode {
+		fmt.Fprintf(os.Stderr, "DEBUG DCE: Reachable functions from dependency graph: %d\n", len(reachable))
+		fmt.Fprintf(os.Stderr, "DEBUG: Used functions after DCE: %v\n", fc.usedFunctions)
+	}
+
 	// Arena runtime functions are generated inline below (_c67_arena_create, alloc, etc)
 	// Don't call fc.eb.EmitArenaRuntimeCode() as it's the old stub from main.go
 	// Arena symbols are predeclared earlier in writeELF() to ensure they're available during code generation
-
-	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "DEBUG: Used functions: %v\n", fc.usedFunctions)
-	}
 
 	// Generate syscall-based printf runtime on Linux
 	fc.GeneratePrintfSyscallRuntime()
@@ -12767,6 +12801,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 	// Track this function call for DCE
 	fc.calledLambdas[call.Function] = true
+	fc.trackFunctionCall(call.Function)
 
 	// Check if this is a recursive call (function name matches current lambda)
 	isRecursive := fc.currentLambda != nil && call.Function == fc.currentLambda.Name
@@ -18136,6 +18171,7 @@ func (fc *C67Compiler) trackFunctionCall(funcName string) {
 		fc.usedFunctions[funcName] = true
 	}
 	fc.callOrder = append(fc.callOrder, funcName)
+	fc.depGraph.AddCall(fc.currentFunction, funcName)
 }
 
 // callMallocAligned calls malloc with proper stack alignment.
