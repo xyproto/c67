@@ -771,6 +771,39 @@ init = -> setup_resources()             // Initialization function
 cleanup = -> release_all()              // Cleanup callback
 ```
 
+### Block Context Sensitivity
+
+Blocks behave differently based on context:
+
+```c67
+// Expression context: immediate evaluation
+println({ 10 })                    // Prints: 10
+println({ x = 5; x * 2 })          // Prints: 10
+result = ({ a = 10; a + 20 })      // result = 30
+
+// Assignment context: creates lambda
+f = { 10 }                         // f is a lambda (0-arg function)
+println(f())                       // Prints: 10
+
+g = { x = 5; x * 2 }               // g is a lambda
+println(g())                       // Prints: 10
+
+// Deferred computation
+compute = { temp = 42; temp * 2 }
+result = compute()                 // result = 84
+
+// Map literals use colon syntax
+m = { x: 10, y: 20 }              // This is a map, not a block
+println(m.x)                       // Prints: 10
+```
+
+**Key Points:**
+- Blocks in expressions evaluate immediately
+- Blocks assigned to variables become lambdas (deferred)
+- Call with `()` to execute: `f()`
+- Maps use `:` syntax: `{ key: value }`
+- Pattern lambdas use `=>` or `~>`: `{ x => x * 2 }`
+
 ### Lambda Expressions
 
 Lambdas can be defined with or without the `->` arrow, depending on syntax:

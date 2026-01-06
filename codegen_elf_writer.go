@@ -44,7 +44,7 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 			break
 		}
 	}
-	
+
 	// Math functions that require libm when called via C FFI
 	libmFunctions := map[string]bool{
 		"sin": true, "cos": true, "tan": true, "asin": true, "acos": true, "atan": true, "atan2": true,
@@ -52,9 +52,9 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 		"log": true, "log10": true, "exp": true, "pow": true, "sqrt": true,
 		"fabs": true, "fmod": true, "ceil": true, "floor": true,
 	}
-	
+
 	needsLibm := false
-	
+
 	// Check C FFI calls - these need dynamic linking
 	for funcName, libName := range fc.cFFIFunctions {
 		if libName == "c" {

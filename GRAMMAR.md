@@ -154,10 +154,42 @@ compute = x -> {
 }
 ```
 
+**Context-Sensitive Evaluation:**
+
+Statement blocks behave differently depending on context:
+
+#### Expression Context (Immediate Evaluation)
+When a block appears in expression position, it evaluates immediately:
+
+```c67
+println({ 10 })                    // Prints: 10
+println({ x = 5; x * 2 })          // Prints: 10
+result = ({ a = 10; a + 20 })      // result = 30
+```
+
+#### Assignment Context (Lambda Creation)
+When a block is assigned to a variable, it becomes a lambda (0-argument function):
+
+```c67
+f = { 10 }                         // f is a lambda
+println(f())                       // Prints: 10
+
+g = { x = 5; x * 2 }               // g is a lambda
+println(g())                       // Prints: 10
+
+// Lambda can be called later
+compute = { temp = 42; temp * 2 }
+result = compute()                 // result = 84
+```
+
+This allows elegant syntax for both immediate evaluation and deferred computation.
+
 **Disambiguation order:**
 1. Check for `:` → Map literal
 2. Check for `=>` or `~>` → Match block
 3. Otherwise → Statement block
+   - Expression context → Evaluate immediately
+   - Assignment context → Create lambda
 
 **Match block type:**
 - Has expression before `{` → Value match
