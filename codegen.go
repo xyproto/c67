@@ -10009,289 +10009,289 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	// String output functions - only generate if used
 	if fc.usedFunctions["_c67_string_println"] || fc.usedFunctions["println"] {
 		// Generate _c67_string_println(string_ptr) - prints string followed by newline
-	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
-	fc.eb.MarkLabel("_c67_string_println")
+		// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
+		fc.eb.MarkLabel("_c67_string_println")
 
-	// For Windows, we use a simpler approach: call printf for each character
-	// For Unix, we use write syscall for efficiency
-	if fc.eb.target.OS() == OSWindows {
-		// Windows version: use printf to print the string
-		fc.out.PushReg("rbp")
-		fc.out.MovRegToReg("rbp", "rsp")
-		fc.out.PushReg("rbx")
-		fc.out.PushReg("r12")
-		fc.out.PushReg("r14")
+		// For Windows, we use a simpler approach: call printf for each character
+		// For Unix, we use write syscall for efficiency
+		if fc.eb.target.OS() == OSWindows {
+			// Windows version: use printf to print the string
+			fc.out.PushReg("rbp")
+			fc.out.MovRegToReg("rbp", "rsp")
+			fc.out.PushReg("rbx")
+			fc.out.PushReg("r12")
+			fc.out.PushReg("r14")
 
-		// Windows calling convention: first arg is rcx
-		fc.out.MovRegToReg("rbx", "rcx") // rbx = string pointer
+			// Windows calling convention: first arg is rcx
+			fc.out.MovRegToReg("rbx", "rcx") // rbx = string pointer
 
-		// Get length
-		fc.out.MovMemToXmm("xmm0", "rbx", 0)
-		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+			// Get length
+			fc.out.MovMemToXmm("xmm0", "rbx", 0)
+			fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
 
-		// Loop through characters
-		fc.out.XorRegWithReg("r14", "r14") // r14 = index
+			// Loop through characters
+			fc.out.XorRegWithReg("r14", "r14") // r14 = index
 
-		strPrintLoopStart := fc.eb.text.Len()
-		fc.out.CmpRegToReg("r14", "r12")
-		strPrintLoopEnd := fc.eb.text.Len()
-		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
-		strPrintLoopEndPos := fc.eb.text.Len()
+			strPrintLoopStart := fc.eb.text.Len()
+			fc.out.CmpRegToReg("r14", "r12")
+			strPrintLoopEnd := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			strPrintLoopEndPos := fc.eb.text.Len()
 
-		// Calculate offset: 16 + index * 16
-		fc.out.MovRegToReg("rax", "r14")
-		fc.out.ShlImmReg("rax", 4)       // rax = index * 16
-		fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
-		fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
+			// Calculate offset: 16 + index * 16
+			fc.out.MovRegToReg("rax", "r14")
+			fc.out.ShlImmReg("rax", 4)       // rax = index * 16
+			fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
+			fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
 
-		// Load character code
-		fc.out.MovMemToXmm("xmm0", "rax", 0)
-		fc.out.Cvttsd2si("rdx", "xmm0") // rdx = character code
+			// Load character code
+			fc.out.MovMemToXmm("xmm0", "rax", 0)
+			fc.out.Cvttsd2si("rdx", "xmm0") // rdx = character code
 
-		// Call putchar via printf
-		// printf("%c", char)
-		// Create format string "%c"
-		charFmtLabel := fmt.Sprintf("_c67_char_fmt_%d", fc.stringCounter)
-		fc.stringCounter++
-		fc.eb.Define(charFmtLabel, "%c\x00")
+			// Call putchar via printf
+			// printf("%c", char)
+			// Create format string "%c"
+			charFmtLabel := fmt.Sprintf("_c67_char_fmt_%d", fc.stringCounter)
+			fc.stringCounter++
+			fc.eb.Define(charFmtLabel, "%c\x00")
 
-		fc.out.SubImmFromReg("rsp", 32) // Shadow space
-		fc.out.LeaSymbolToReg("rcx", charFmtLabel)
-		// rdx already has the character
-		fc.trackFunctionCall("printf")
-		fc.eb.GenerateCallInstruction("printf")
-		fc.out.AddImmToReg("rsp", 32)
+			fc.out.SubImmFromReg("rsp", 32) // Shadow space
+			fc.out.LeaSymbolToReg("rcx", charFmtLabel)
+			// rdx already has the character
+			fc.trackFunctionCall("printf")
+			fc.eb.GenerateCallInstruction("printf")
+			fc.out.AddImmToReg("rsp", 32)
 
-		// Increment and loop
-		fc.out.IncReg("r14")
-		strPrintBackOffset := int32(strPrintLoopStart - (fc.eb.text.Len() + 5))
-		fc.out.JumpUnconditional(strPrintBackOffset)
+			// Increment and loop
+			fc.out.IncReg("r14")
+			strPrintBackOffset := int32(strPrintLoopStart - (fc.eb.text.Len() + 5))
+			fc.out.JumpUnconditional(strPrintBackOffset)
 
-		// Patch loop end
-		strPrintDonePos := fc.eb.text.Len()
-		fc.patchJumpImmediate(strPrintLoopEnd+2, int32(strPrintDonePos-strPrintLoopEndPos))
+			// Patch loop end
+			strPrintDonePos := fc.eb.text.Len()
+			fc.patchJumpImmediate(strPrintLoopEnd+2, int32(strPrintDonePos-strPrintLoopEndPos))
 
-		// Print newline: printf("\n")
-		newlineFmtLabel := fmt.Sprintf("_c67_newline_fmt_%d", fc.stringCounter)
-		fc.stringCounter++
-		fc.eb.Define(newlineFmtLabel, "\n\x00")
+			// Print newline: printf("\n")
+			newlineFmtLabel := fmt.Sprintf("_c67_newline_fmt_%d", fc.stringCounter)
+			fc.stringCounter++
+			fc.eb.Define(newlineFmtLabel, "\n\x00")
 
-		fc.out.SubImmFromReg("rsp", 32)
-		fc.out.LeaSymbolToReg("rcx", newlineFmtLabel)
-		fc.trackFunctionCall("printf")
-		fc.eb.GenerateCallInstruction("printf")
-		fc.out.AddImmToReg("rsp", 32)
+			fc.out.SubImmFromReg("rsp", 32)
+			fc.out.LeaSymbolToReg("rcx", newlineFmtLabel)
+			fc.trackFunctionCall("printf")
+			fc.eb.GenerateCallInstruction("printf")
+			fc.out.AddImmToReg("rsp", 32)
 
-		// Restore
-		fc.out.PopReg("r14")
-		fc.out.PopReg("r12")
-		fc.out.PopReg("rbx")
-		fc.out.PopReg("rbp")
-		fc.out.Ret()
-	} else {
-		// Unix version: use write syscall
-		fc.out.PushReg("rbp")
-		fc.out.MovRegToReg("rbp", "rsp")
-		fc.out.PushReg("rbx")
-		fc.out.PushReg("r12")
-		fc.out.PushReg("r13")
-		fc.out.PushReg("r14")
+			// Restore
+			fc.out.PopReg("r14")
+			fc.out.PopReg("r12")
+			fc.out.PopReg("rbx")
+			fc.out.PopReg("rbp")
+			fc.out.Ret()
+		} else {
+			// Unix version: use write syscall
+			fc.out.PushReg("rbp")
+			fc.out.MovRegToReg("rbp", "rsp")
+			fc.out.PushReg("rbx")
+			fc.out.PushReg("r12")
+			fc.out.PushReg("r13")
+			fc.out.PushReg("r14")
 
-		fc.out.MovRegToReg("rbx", "rdi") // rbx = string pointer
+			fc.out.MovRegToReg("rbx", "rdi") // rbx = string pointer
 
-		// Get length
-		fc.out.MovMemToXmm("xmm0", "rbx", 0)
-		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+			// Get length
+			fc.out.MovMemToXmm("xmm0", "rbx", 0)
+			fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
 
-		// Allocate 1-byte buffer on stack
-		fc.out.SubImmFromReg("rsp", 8)
-		fc.out.MovRegToReg("r13", "rsp") // r13 = buffer address
+			// Allocate 1-byte buffer on stack
+			fc.out.SubImmFromReg("rsp", 8)
+			fc.out.MovRegToReg("r13", "rsp") // r13 = buffer address
 
-		// Loop through characters
-		fc.out.XorRegWithReg("r14", "r14") // r14 = index (use r14 instead of rcx since syscall clobbers rcx)
+			// Loop through characters
+			fc.out.XorRegWithReg("r14", "r14") // r14 = index (use r14 instead of rcx since syscall clobbers rcx)
 
-		strPrintLoopStart := fc.eb.text.Len()
-		fc.out.CmpRegToReg("r14", "r12")
-		strPrintLoopEnd := fc.eb.text.Len()
-		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
-		strPrintLoopEndPos := fc.eb.text.Len()
+			strPrintLoopStart := fc.eb.text.Len()
+			fc.out.CmpRegToReg("r14", "r12")
+			strPrintLoopEnd := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			strPrintLoopEndPos := fc.eb.text.Len()
 
-		// Calculate offset: 16 + index * 16
-		fc.out.MovRegToReg("rax", "r14")
-		fc.out.ShlImmReg("rax", 4)       // rax = index * 16
-		fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
-		fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
+			// Calculate offset: 16 + index * 16
+			fc.out.MovRegToReg("rax", "r14")
+			fc.out.ShlImmReg("rax", 4)       // rax = index * 16
+			fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
+			fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
 
-		// Load character code
-		fc.out.MovMemToXmm("xmm0", "rax", 0)
-		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.MovRegToMem("rdi", "r13", 0)
+			// Load character code
+			fc.out.MovMemToXmm("xmm0", "rax", 0)
+			fc.out.Cvttsd2si("rdi", "xmm0")
+			fc.out.MovRegToMem("rdi", "r13", 0)
 
-		// write(1, buffer, 1)
-		fc.out.MovImmToReg("rax", "1")   // syscall: write
-		fc.out.MovImmToReg("rdi", "1")   // fd: stdout
-		fc.out.MovRegToReg("rsi", "r13") // buffer
-		fc.out.MovImmToReg("rdx", "1")   // length: 1
-		fc.out.Syscall()
+			// write(1, buffer, 1)
+			fc.out.MovImmToReg("rax", "1")   // syscall: write
+			fc.out.MovImmToReg("rdi", "1")   // fd: stdout
+			fc.out.MovRegToReg("rsi", "r13") // buffer
+			fc.out.MovImmToReg("rdx", "1")   // length: 1
+			fc.out.Syscall()
 
-		// Increment and loop
-		fc.out.IncReg("r14")
-		strPrintBackOffset := int32(strPrintLoopStart - (fc.eb.text.Len() + 5))
-		fc.out.JumpUnconditional(strPrintBackOffset)
+			// Increment and loop
+			fc.out.IncReg("r14")
+			strPrintBackOffset := int32(strPrintLoopStart - (fc.eb.text.Len() + 5))
+			fc.out.JumpUnconditional(strPrintBackOffset)
 
-		// Patch loop end
-		strPrintDonePos := fc.eb.text.Len()
-		fc.patchJumpImmediate(strPrintLoopEnd+2, int32(strPrintDonePos-strPrintLoopEndPos))
+			// Patch loop end
+			strPrintDonePos := fc.eb.text.Len()
+			fc.patchJumpImmediate(strPrintLoopEnd+2, int32(strPrintDonePos-strPrintLoopEndPos))
 
-		// Print newline
-		fc.out.MovImmToReg("rax", "10") // '\n'
-		fc.out.MovRegToMem("rax", "r13", 0)
-		fc.out.MovImmToReg("rax", "1")   // syscall: write
-		fc.out.MovImmToReg("rdi", "1")   // fd: stdout
-		fc.out.MovRegToReg("rsi", "r13") // buffer
-		fc.out.MovImmToReg("rdx", "1")   // length: 1
-		fc.out.Syscall()
+			// Print newline
+			fc.out.MovImmToReg("rax", "10") // '\n'
+			fc.out.MovRegToMem("rax", "r13", 0)
+			fc.out.MovImmToReg("rax", "1")   // syscall: write
+			fc.out.MovImmToReg("rdi", "1")   // fd: stdout
+			fc.out.MovRegToReg("rsi", "r13") // buffer
+			fc.out.MovImmToReg("rdx", "1")   // length: 1
+			fc.out.Syscall()
 
-		// Restore
-		fc.out.AddImmToReg("rsp", 8)
-		fc.out.PopReg("r14")
-		fc.out.PopReg("r13")
-		fc.out.PopReg("r12")
-		fc.out.PopReg("rbx")
-		fc.out.PopReg("rbp")
-		fc.out.Ret()
-	}
+			// Restore
+			fc.out.AddImmToReg("rsp", 8)
+			fc.out.PopReg("r14")
+			fc.out.PopReg("r13")
+			fc.out.PopReg("r12")
+			fc.out.PopReg("rbx")
+			fc.out.PopReg("rbp")
+			fc.out.Ret()
+		}
 	} // end if _c67_string_println used
 
 	if fc.usedFunctions["_c67_string_print"] {
 		// Generate _c67_string_print(string_ptr) - prints string WITHOUT newline
-	// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
-	fc.eb.MarkLabel("_c67_string_print")
+		// Argument: rdi/rcx (platform-dependent) = string pointer (map with [count][0][char0][1][char1]...)
+		fc.eb.MarkLabel("_c67_string_print")
 
-	if fc.eb.target.OS() == OSWindows {
-		// Windows version: use printf for each character
-		fc.out.PushReg("rbp")
-		fc.out.MovRegToReg("rbp", "rsp")
-		fc.out.PushReg("rbx")
-		fc.out.PushReg("r12")
-		fc.out.PushReg("r14")
+		if fc.eb.target.OS() == OSWindows {
+			// Windows version: use printf for each character
+			fc.out.PushReg("rbp")
+			fc.out.MovRegToReg("rbp", "rsp")
+			fc.out.PushReg("rbx")
+			fc.out.PushReg("r12")
+			fc.out.PushReg("r14")
 
-		// Windows calling convention: first arg is rcx
-		fc.out.MovRegToReg("rbx", "rcx") // rbx = string pointer
+			// Windows calling convention: first arg is rcx
+			fc.out.MovRegToReg("rbx", "rcx") // rbx = string pointer
 
-		// Get length
-		fc.out.MovMemToXmm("xmm0", "rbx", 0)
-		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+			// Get length
+			fc.out.MovMemToXmm("xmm0", "rbx", 0)
+			fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
 
-		// Loop through characters
-		fc.out.XorRegWithReg("r14", "r14") // r14 = index
+			// Loop through characters
+			fc.out.XorRegWithReg("r14", "r14") // r14 = index
 
-		strPrintLoopStart2 := fc.eb.text.Len()
-		fc.out.CmpRegToReg("r14", "r12")
-		strPrintLoopEnd2 := fc.eb.text.Len()
-		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
-		strPrintLoopEndPos2 := fc.eb.text.Len()
+			strPrintLoopStart2 := fc.eb.text.Len()
+			fc.out.CmpRegToReg("r14", "r12")
+			strPrintLoopEnd2 := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			strPrintLoopEndPos2 := fc.eb.text.Len()
 
-		// Calculate offset: 16 + index * 16
-		fc.out.MovRegToReg("rax", "r14")
-		fc.out.ShlImmReg("rax", 4)       // rax = index * 16
-		fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
-		fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
+			// Calculate offset: 16 + index * 16
+			fc.out.MovRegToReg("rax", "r14")
+			fc.out.ShlImmReg("rax", 4)       // rax = index * 16
+			fc.out.AddImmToReg("rax", 16)    // rax = 16 + index * 16
+			fc.out.AddRegToReg("rax", "rbx") // rax = string_ptr + offset
 
-		// Load character code
-		fc.out.MovMemToXmm("xmm0", "rax", 0)
-		fc.out.Cvttsd2si("rdx", "xmm0") // rdx = character code
+			// Load character code
+			fc.out.MovMemToXmm("xmm0", "rax", 0)
+			fc.out.Cvttsd2si("rdx", "xmm0") // rdx = character code
 
-		// Call putchar via printf
-		charFmtLabel2 := fmt.Sprintf("_c67_char_fmt_%d", fc.stringCounter)
-		fc.stringCounter++
-		fc.eb.Define(charFmtLabel2, "%c\x00")
+			// Call putchar via printf
+			charFmtLabel2 := fmt.Sprintf("_c67_char_fmt_%d", fc.stringCounter)
+			fc.stringCounter++
+			fc.eb.Define(charFmtLabel2, "%c\x00")
 
-		fc.out.SubImmFromReg("rsp", 32) // Shadow space
-		fc.out.LeaSymbolToReg("rcx", charFmtLabel2)
-		fc.trackFunctionCall("printf")
-		fc.eb.GenerateCallInstruction("printf")
-		fc.out.AddImmToReg("rsp", 32)
+			fc.out.SubImmFromReg("rsp", 32) // Shadow space
+			fc.out.LeaSymbolToReg("rcx", charFmtLabel2)
+			fc.trackFunctionCall("printf")
+			fc.eb.GenerateCallInstruction("printf")
+			fc.out.AddImmToReg("rsp", 32)
 
-		// Increment and loop
-		fc.out.IncReg("r14")
-		strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
-		fc.out.JumpUnconditional(strPrintBackOffset2)
+			// Increment and loop
+			fc.out.IncReg("r14")
+			strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
+			fc.out.JumpUnconditional(strPrintBackOffset2)
 
-		// Patch loop end
-		strPrintDonePos2 := fc.eb.text.Len()
-		fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
+			// Patch loop end
+			strPrintDonePos2 := fc.eb.text.Len()
+			fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
 
-		// No newline - just return
-		fc.out.PopReg("r14")
-		fc.out.PopReg("r12")
-		fc.out.PopReg("rbx")
-		fc.out.PopReg("rbp")
-		fc.out.Ret()
-	} else {
-		// Unix version: use write syscall
-		fc.out.PushReg("rbp")
-		fc.out.MovRegToReg("rbp", "rsp")
-		fc.out.PushReg("rbx")
-		fc.out.PushReg("r12")
-		fc.out.PushReg("r13")
-		fc.out.PushReg("r14")
+			// No newline - just return
+			fc.out.PopReg("r14")
+			fc.out.PopReg("r12")
+			fc.out.PopReg("rbx")
+			fc.out.PopReg("rbp")
+			fc.out.Ret()
+		} else {
+			// Unix version: use write syscall
+			fc.out.PushReg("rbp")
+			fc.out.MovRegToReg("rbp", "rsp")
+			fc.out.PushReg("rbx")
+			fc.out.PushReg("r12")
+			fc.out.PushReg("r13")
+			fc.out.PushReg("r14")
 
-		fc.out.MovRegToReg("rbx", "rdi") // rbx = string pointer
+			fc.out.MovRegToReg("rbx", "rdi") // rbx = string pointer
 
-		// Get length
-		fc.out.MovMemToXmm("xmm0", "rbx", 0)
-		fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
+			// Get length
+			fc.out.MovMemToXmm("xmm0", "rbx", 0)
+			fc.out.Cvttsd2si("r12", "xmm0") // r12 = length
 
-		// Allocate 1-byte buffer on stack
-		fc.out.SubImmFromReg("rsp", 8)
-		fc.out.MovRegToReg("r13", "rsp") // r13 = buffer address
+			// Allocate 1-byte buffer on stack
+			fc.out.SubImmFromReg("rsp", 8)
+			fc.out.MovRegToReg("r13", "rsp") // r13 = buffer address
 
-		// Loop through characters
-		fc.out.XorRegWithReg("r14", "r14") // r14 = index
+			// Loop through characters
+			fc.out.XorRegWithReg("r14", "r14") // r14 = index
 
-		strPrintLoopStart2 := fc.eb.text.Len()
-		fc.out.CmpRegToReg("r14", "r12")
-		strPrintLoopEnd2 := fc.eb.text.Len()
-		fc.out.JumpConditional(JumpGreaterOrEqual, 0)
-		strPrintLoopEndPos2 := fc.eb.text.Len()
+			strPrintLoopStart2 := fc.eb.text.Len()
+			fc.out.CmpRegToReg("r14", "r12")
+			strPrintLoopEnd2 := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			strPrintLoopEndPos2 := fc.eb.text.Len()
 
-		// Calculate offset: 16 + index * 16
-		fc.out.MovRegToReg("rax", "r14")
-		fc.out.ShlImmReg("rax", 4)
-		fc.out.AddImmToReg("rax", 16)
-		fc.out.AddRegToReg("rax", "rbx")
+			// Calculate offset: 16 + index * 16
+			fc.out.MovRegToReg("rax", "r14")
+			fc.out.ShlImmReg("rax", 4)
+			fc.out.AddImmToReg("rax", 16)
+			fc.out.AddRegToReg("rax", "rbx")
 
-		// Load character
-		fc.out.MovMemToXmm("xmm0", "rax", 0)
-		fc.out.Cvttsd2si("rax", "xmm0")
-		fc.out.MovRegToMem("rax", "r13", 0)
+			// Load character
+			fc.out.MovMemToXmm("xmm0", "rax", 0)
+			fc.out.Cvttsd2si("rax", "xmm0")
+			fc.out.MovRegToMem("rax", "r13", 0)
 
-		// Write syscall
-		fc.out.MovImmToReg("rax", "1")   // syscall: write
-		fc.out.MovImmToReg("rdi", "1")   // fd: stdout
-		fc.out.MovRegToReg("rsi", "r13") // buffer
-		fc.out.MovImmToReg("rdx", "1")   // length: 1
-		fc.out.Syscall()
+			// Write syscall
+			fc.out.MovImmToReg("rax", "1")   // syscall: write
+			fc.out.MovImmToReg("rdi", "1")   // fd: stdout
+			fc.out.MovRegToReg("rsi", "r13") // buffer
+			fc.out.MovImmToReg("rdx", "1")   // length: 1
+			fc.out.Syscall()
 
-		// Increment and loop
-		fc.out.IncReg("r14")
-		strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
-		fc.out.JumpUnconditional(strPrintBackOffset2)
+			// Increment and loop
+			fc.out.IncReg("r14")
+			strPrintBackOffset2 := int32(strPrintLoopStart2 - (fc.eb.text.Len() + 5))
+			fc.out.JumpUnconditional(strPrintBackOffset2)
 
-		// Patch loop end
-		strPrintDonePos2 := fc.eb.text.Len()
-		fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
+			// Patch loop end
+			strPrintDonePos2 := fc.eb.text.Len()
+			fc.patchJumpImmediate(strPrintLoopEnd2+2, int32(strPrintDonePos2-strPrintLoopEndPos2))
 
-		// No newline - just return
-		fc.out.AddImmToReg("rsp", 8)
-		fc.out.PopReg("r14")
-		fc.out.PopReg("r13")
-		fc.out.PopReg("r12")
-		fc.out.PopReg("rbx")
-		fc.out.PopReg("rbp")
-		fc.out.Ret()
-	}
+			// No newline - just return
+			fc.out.AddImmToReg("rsp", 8)
+			fc.out.PopReg("r14")
+			fc.out.PopReg("r13")
+			fc.out.PopReg("r12")
+			fc.out.PopReg("rbx")
+			fc.out.PopReg("rbp")
+			fc.out.Ret()
+		}
 	} // end if _c67_string_print used
 
 	// Generate _c67_itoa for number to string conversion
