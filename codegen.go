@@ -18238,60 +18238,6 @@ func (fc *C67Compiler) callMallocAligned(sizeReg string, pushCount int) {
 	// Result is in rax
 }
 
-func (fc *C67Compiler) buildLambdaContainmentGraph() {
-	// Build a map of all lambda names for quick lookup
-	lambdaNames := make(map[string]bool)
-	for _, lambda := range fc.lambdaFuncs {
-		lambdaNames[lambda.Name] = true
-	}
-	
-	// For each lambda, scan its body for assignment statements that define other lambdas
-	for _, parent := range fc.lambdaFuncs {
-		fc.findNestedLambdas(parent.Body, parent.Name, lambdaNames)
-	}
-}
-
-func (fc *C67Compiler) findNestedLambdas(expr Expression, parentName string, lambdaNames map[string]bool) {
-	if expr == nil {
-		return
-	}
-	
-	switch e := expr.(type) {
-	case *BlockExpr:
-		for _, stmt := range e.Statements {
-			fc.findNestedLambdasInStmt(stmt, parentName, lambdaNames)
-		}
-	case *MatchExpr:
-		for _, clause := range e.Clauses {
-			fc.findNestedLambdas(clause.Result, parentName, lambdaNames)
-		}
-		if e.DefaultExpr != nil {
-			fc.findNestedLambdas(e.DefaultExpr, parentName, lambdaNames)
-		}
-	}
-}
-
-func (fc *C67Compiler) findNestedLambdasInStmt(stmt Statement, parentName string, lambdaNames map[string]bool) {
-	switch s := stmt.(type) {
-	case *AssignStmt:
-		// Check if this assignment creates a lambda that's in our lambda list
-		if lambdaNames[s.Name] && s.Name != parentName {
-			fc.depGraph.AddContains(parentName, s.Name)
-			if VerboseMode {
-				fmt.Fprintf(os.Stderr, "DEBUG DCE: Found nested lambda '%s' inside '%s'\n", s.Name, parentName)
-			}
-		}
-		// Recursively search the value expression
-		fc.findNestedLambdas(s.Value, parentName, lambdaNames)
-	case *ExpressionStmt:
-		fc.findNestedLambdas(s.Expr, parentName, lambdaNames)
-	case *LoopStmt:
-		for _, bodyStmt := range s.Body {
-			fc.findNestedLambdasInStmt(bodyStmt, parentName, lambdaNames)
-		}
-	}
-}
-
 // collectFunctionCalls walks an expression and collects all function calls
 // Confidence that this function is working: 95%
 // Confidence that this function is working: 98%

@@ -1,7 +1,7 @@
 # TODO
 
 ## Binary Size Optimization  
-- Re-enable DCE for runtime helpers (currently all helpers included, causing 2KB overhead)
+- Optimize DCE for runtime helpers (currently all helpers included, causing ~2KB overhead)
 - Implement tree shaking to remove unused error handlers
 - Add minimal C runtime for static binaries (remove libc dependency)
 - Compress embedded error messages
@@ -14,17 +14,16 @@
 - Add destructuring in match patterns
 - Generate jump tables for dense integer matches (10+ consecutive cases)
 
-## Completed Today
-- ✅ Fixed printf %b stale slice bug
-- ✅ Fixed static ELF rodata generation (was empty, causing garbage output)
-- ✅ Fixed static ELF runtime helpers (weren't generated, causing segfaults)
-- ✅ eprintln/eprint now work correctly in static binaries
-- ✅ All tests passing
-- Current binary sizes: 401 bytes (minimal), ~2KB with helpers (needs DCE)
+## Completed Today (2026-01-06)
+- ✅ Implemented dependency graph for proper DCE tracking
+- ✅ Fixed DCE to handle nested lambdas and higher-order functions
+- ✅ Track all function calls in dependency graph (including global scope)
+- ✅ Properly handle lambdas returned as values (closures)
+- ✅ All tests passing (except pre-existing Windows PE issue)
+- ✅ Multi-file compilation now works correctly (add.c67 + hello.c67)
 
 ## Binary Size Optimization
 
-- Implement function-level dead code elimination for unused functions
 - Strip unused string literals from rodata
 - Merge duplicate string literals
 - Use shorter instruction sequences where possible (inc vs add 1)
@@ -36,15 +35,9 @@
 - Support nested destructuring: `[a, [b, c]] => ...`
 - Add @ pattern for binding while matching: `x @ [_, _] => ...`
 
-## Current Issues
-
-- Static ELF printf/println produces no output (need runtime string functions or force dynamic)
-- Some tests failing due to printf issue
-- printf$stub call patch warnings (trying to call libc printf in static mode)
-
 ## Completed
 
-- ✅ Dead code elimination (basic - remove unused user functions)
+- ✅ Dead code elimination with dependency graph (supports nested lambdas, higher-order functions)
 - ✅ Conditional dynamic linking (only when C FFI or libm used)
 - ✅ Bad address detection (0xdeadbeef, 0x12345678)
 - ✅ Arena usage detection (skip init/cleanup if unused)
