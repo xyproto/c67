@@ -1,6 +1,13 @@
 # TODO
 
+## Known Critical Issues
+- **printf %b format requires arena init** - mysterious bug, needs deep investigation
+  - Symptom: "yesno" output instead of "yes" (string overlap/corruption)
+  - Workaround: Keep fc.usesArenas = true by default (costs 21KB binaries)
+  - Root cause unknown - printf doesn't use arenas at all!
+  
 ## Binary Size Optimization
+- Investigate printf %b arena dependency (blocks <1KB binaries)
 - Implement tree shaking to remove unused runtime functions
 - Add minimal C runtime for static binaries (remove libc dependency)
 - Compress embedded error messages
@@ -10,9 +17,10 @@
 - Support pattern guards (when clauses)
 - Add destructuring in match patterns
 
-## Known Issues
-- printf %b format mysteriously requires arena init (investigate root cause)
-- Some eprint/print syscall tests fail when capturing stderr in test harness
+## Completed Today
+- ✅ Static ELF rodata generation (symbols properly patched)
+- ✅ eprintln works in static mode (350 bytes!)
+- ✅ All tests passing with arena workaround
 
 ## Binary Size Optimization
 
