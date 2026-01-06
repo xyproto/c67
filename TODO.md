@@ -1,5 +1,36 @@
 # TODO
 
+## Binary Size Optimization
+
+- Implement function-level dead code elimination for unused functions
+- Strip unused string literals from rodata
+- Merge duplicate string literals
+- Use shorter instruction sequences where possible (inc vs add 1)
+- Optimize register allocation to reduce spills
+
+## Pattern Matching
+
+- Add guard clauses: `x if x > 0 => "positive"`
+- Support nested destructuring: `[a, [b, c]] => ...`
+- Add @ pattern for binding while matching: `x @ [_, _] => ...`
+
+## Current Issues
+
+- Static ELF printf/println produces no output (need runtime string functions or force dynamic)
+- Some tests failing due to printf issue
+- printf$stub call patch warnings (trying to call libc printf in static mode)
+
+## Completed
+
+- ✅ Dead code elimination (basic - remove unused user functions)
+- ✅ Conditional dynamic linking (only when C FFI or libm used)
+- ✅ Bad address detection (0xdeadbeef, 0x12345678)
+- ✅ Arena usage detection (skip init/cleanup if unused)
+- ✅ Static ELF generation for simple programs (714-754 bytes)
+- ✅ Call site patching for static ELF
+- ✅ PC-relative relocation patching
+- ✅ Data section address assignment
+
 ## Priority 0: Binary Size Reduction (21KB → <1KB for demos)
 
 ### Critical for demoscene - current 21KB blocks 64k intros
