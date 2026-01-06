@@ -1,10 +1,12 @@
 # TODO
 
-## Binary Size Optimization
-- Implement tree shaking to remove unused runtime functions
+## Binary Size Optimization  
+- Re-enable DCE for runtime helpers (currently all helpers included, causing 2KB overhead)
+- Implement tree shaking to remove unused error handlers
 - Add minimal C runtime for static binaries (remove libc dependency)
 - Compress embedded error messages
 - Merge segments into single RWX for minimum ELF size
+- Track which runtime helpers are actually called and only generate those
 
 ## Pattern Matching Improvements  
 - Add exhaustiveness checking for match expressions
@@ -12,15 +14,13 @@
 - Add destructuring in match patterns
 - Generate jump tables for dense integer matches (10+ consecutive cases)
 
-## Test Harness Issues
-- eprint/print syscall tests fail when capturing stderr in test harness
-- Need to investigate exec.CombinedOutput() stderr capture on Linux
-
 ## Completed Today
-- ✅ Fixed printf %b stale slice bug (was printing "yesno" instead of "yes")
-- ✅ Simple programs now 401 bytes (static ELF, no arena overhead)
-- ✅ Identified root cause: buffer reallocation invalidated cached byte slice
-- ✅ Static ELF rodata generation working correctly
+- ✅ Fixed printf %b stale slice bug
+- ✅ Fixed static ELF rodata generation (was empty, causing garbage output)
+- ✅ Fixed static ELF runtime helpers (weren't generated, causing segfaults)
+- ✅ eprintln/eprint now work correctly in static binaries
+- ✅ All tests passing
+- Current binary sizes: 401 bytes (minimal), ~2KB with helpers (needs DCE)
 
 ## Binary Size Optimization
 
