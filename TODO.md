@@ -257,3 +257,13 @@ Remaining issues:
 - Static printf not implemented (would enable true static mode)
 
 Current state: All functionality working, tests passing, but binary sizes not yet optimized.
+## Known Issues
+
+### Windows PE Compilation  
+The Windows PE test (TestWindowsCompilation) currently fails with '_c67_arena_alloc not found' error.
+This is a regression introduced by the DCE changes. The arena functions are not being generated
+for Windows targets even though fc.usesArenas should be true. Needs investigation of why
+usesArenas is not set during Windows compilation or why arena functions aren't generated.
+
+Workaround: Skip Windows test or compile without DCE for Windows targets.
+
