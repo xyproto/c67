@@ -1,6 +1,20 @@
 # TODO
 
 ## Binary Size Optimization
+- Implement tree shaking to remove unused runtime functions
+- Add minimal C runtime for static binaries (remove libc dependency)
+- Compress embedded error messages
+
+## Pattern Matching Improvements  
+- Add exhaustiveness checking for match expressions
+- Support pattern guards (when clauses)
+- Add destructuring in match patterns
+
+## Known Issues
+- printf %b format mysteriously requires arena init (investigate root cause)
+- Some eprint/print syscall tests fail when capturing stderr in test harness
+
+## Binary Size Optimization
 
 - Implement function-level dead code elimination for unused functions
 - Strip unused string literals from rodata
