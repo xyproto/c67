@@ -23,7 +23,7 @@
 - ✅ All tests passing including Windows PE
 - ✅ Multi-file compilation now works correctly (add.c67 + hello.c67)
 - ✅ Added DCE guards to all runtime helper functions
-- ✅ Binary size: Minimal programs now 1.1KB (was 21KB)
+- ✅ Binary size: Minimal programs now **609 bytes** (was 21KB)
 - ✅ Printf/println still 21KB due to syscall runtime (~10KB)
 
 ## DCE Implementation Status
@@ -45,7 +45,9 @@
 - ✅ List functions - only if arenas enabled (they require arenas)
 
 ### Results:
-- Minimal program (just `42`): **1.1KB** ✨
+- Minimal program (`x = 42`): **609 bytes** ✨✨
+- Minimal exit (`42`): **1.1KB** ✨
+- Function definition (add): **649 bytes** ✨✨
 - Programs with println: **21KB** (printf runtime is ~10KB)
 - All tests passing
 - Multi-file compilation works
