@@ -690,8 +690,7 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.movedVars = make(map[string]bool)
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
 
-	// TEMP: Enable arenas by default until printf %b issue is fixed
-	fc.usesArenas = true
+	// Arenas enabled on-demand when needed (string concat, list operations, etc.)
 
 	// Check if main() is called at top level (to decide whether to auto-call main)
 	fc.mainCalledAtTopLevel = fc.detectMainCallInTopLevel(program.Statements)

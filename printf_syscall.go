@@ -757,13 +757,12 @@ func (fc *C67Compiler) emitSyscallPrintBooleanYesNo() {
 
 	// Print "no"
 	falseStart := fc.eb.text.Len()
-	bytes := fc.eb.text.Bytes()
-	bytes[falseJump+1] = byte(falseStart - (falseJump + 2))
+	fc.eb.text.Bytes()[falseJump+1] = byte(falseStart - (falseJump + 2))
 	fc.emitSyscallPrintLiteral("no")
 
 	// End
 	endStart := fc.eb.text.Len()
-	bytes[trueJump+1] = byte(endStart - (trueJump + 2))
+	fc.eb.text.Bytes()[trueJump+1] = byte(endStart - (trueJump + 2))
 }
 
 // generatePrintString generates helper to print C-style strings
