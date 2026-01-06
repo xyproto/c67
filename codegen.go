@@ -4834,7 +4834,7 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 		case "/":
 			// Track that division checks are used
 			fc.usesDivCheck = true
-			
+
 			// Check for division by zero (xmm1 == 0.0)
 			zeroReg := fc.regTracker.AllocXMM("div_zero_check")
 			if zeroReg == "" {
@@ -6976,7 +6976,7 @@ func (fc *C67Compiler) compileSizedMemoryStore(store *MemoryStore) {
 func (fc *C67Compiler) emitNullPointerCheck(reg string) {
 	// Track that null checks are used
 	fc.usesNullCheck = true
-	
+
 	// Test if register is zero (null)
 	// test reg, reg sets ZF if reg == 0
 	fc.out.TestRegReg(reg, reg)
@@ -7009,7 +7009,7 @@ func (fc *C67Compiler) emitNullPointerCheck(reg string) {
 func (fc *C67Compiler) emitBoundsCheck(indexReg, lengthReg string) {
 	// Track that bounds checks are used
 	fc.usesBoundsCheck = true
-	
+
 	// Check if index < 0
 	fc.out.CmpRegToImm(indexReg, 0)
 	negativeJumpPos := fc.eb.text.Len()
@@ -11200,7 +11200,7 @@ func (fc *C67Compiler) compileBinaryOpSafe(left, right Expression, operator stri
 	case "/":
 		// Track that division checks are used
 		fc.usesDivCheck = true
-		
+
 		// Check for division by zero (xmm1 == 0.0)
 		zeroReg := fc.regTracker.AllocXMM("div_zero_check")
 		if zeroReg == "" {

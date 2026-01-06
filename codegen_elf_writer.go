@@ -73,7 +73,7 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 	// Check if printf/println/eprint is explicitly used by user code
 	needsPrintf := fc.usedFunctions["printf"] || fc.usedFunctions["println"] || fc.usedFunctions["print"] ||
 		fc.usedFunctions["eprint"] || fc.usedFunctions["eprintln"] || fc.usedFunctions["eprintf"]
-	
+
 	// Check if safety checks are used (they emit printf in error handlers)
 	// Only count if not in unsafe block (safety checks disabled)
 	needsSafetyPrintf := (fc.usesNullCheck || fc.usesBoundsCheck) && !fc.inUnsafeBlock
