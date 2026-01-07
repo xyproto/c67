@@ -55,7 +55,7 @@ func (o *Out) vfmaddX86VectorToVector(dst, src1, src2, src3 string) {
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "# fma %s = %s * %s + %s\n", dst, src1, src2, src3)
 	}
-	
+
 	// Move src3 into dst first (required for FMA231 semantics)
 	// Only move if src3 != dst (avoid unnecessary mov)
 	if src3Reg.Encoding != dstReg.Encoding {
@@ -64,7 +64,7 @@ func (o *Out) vfmaddX86VectorToVector(dst, src1, src2, src3 string) {
 		}
 		o.MovXmmToXmm(dst, src3)
 	}
-	
+
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "vfmadd231pd %s, %s, %s:", dst, src1, src2)
 	}

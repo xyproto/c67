@@ -401,12 +401,12 @@ func (eb *ExecutableBuilder) WriteCompleteDynamicELF(ds *DynamicSections, functi
 	loadStart := uint64(0)
 	loadEnd := layout["rodata"].offset + uint64(layout["rodata"].size) + uint64(eb.data.Len())
 	loadSize := loadEnd - loadStart
-	
+
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "\n=== Single RWX LOAD Segment ===\n")
 		fmt.Fprintf(os.Stderr, "Range: 0x%x - 0x%x (%d bytes)\n", loadStart, loadEnd, loadSize)
 	}
-	
+
 	w.Write4(1) // PT_LOAD
 	w.Write4(7) // PF_R | PF_W | PF_X
 	w.Write8u(loadStart)

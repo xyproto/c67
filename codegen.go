@@ -847,9 +847,11 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	// Arena initialization is needed only if we actually use arenas
 	// (e.g., for string concat, list operations, etc.)
 	if fc.usesArenas {
-		if VerboseMode {
-			fmt.Fprintf(os.Stderr, "DEBUG: Initializing arena (usesArenas=%v)\n", fc.usesArenas)
-		}
+		fmt.Fprintf(os.Stderr, "DEBUG: Initializing arena (usesArenas=%v)\n", fc.usesArenas)
+		fmt.Fprintf(os.Stderr, "DEBUG: usedFunctions has: string_concat=%v, arena_alloc=%v, alloc=%v\n",
+			fc.usedFunctions["_c67_string_concat"],
+			fc.usedFunctions["_c67_arena_alloc"],
+			fc.usedFunctions["alloc"])
 		fc.initializeMetaArenaAndGlobalArena()
 	}
 
@@ -9359,7 +9361,10 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 	} // end if upper/lower/trim used
 
 	// Generate arena functions only if arenas are actually used
-	if fc.usesArenas {
+	// AND at least one arena function is tracked (means code actually calls arena funcs)
+	if fc.usesArenas && (fc.usedFunctions["_c67_string_concat"] || 
+		fc.usedFunctions["_c67_arena_alloc"] || 
+		fc.usedFunctions["alloc"]) {
 		// Generate _c67_arena_create(capacity) -> arena_ptr
 		// Creates a new arena with the specified capacity
 		// Argument: rdi = capacity (int64)
@@ -14216,7 +14221,17 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			fc.stringCounter++
 			fc.eb.Define(labelName, fmtStrWithNull)
 
-			// Set up fprintf/printf call
+			// On Linux, use syscall-based exitf to avoid libc dependency
+			if fc.platform.OS == OSLinux {
+				fc.compileExitfSyscall(call, strExpr)
+				// Exit with code 1
+				fc.out.MovImmToReg("rax", "60") // sys_exit
+				fc.out.MovImmToReg("rdi", "1")  // exit code 1
+				fc.out.Syscall()
+				return
+			}
+
+			// Set up fprintf/printf call (Windows and other platforms)
 			if fc.platform.OS == OSWindows {
 				// On Windows, just use printf to stdout (simpler than dealing with stderr)
 				shadowSpace := fc.allocateShadowSpace()
