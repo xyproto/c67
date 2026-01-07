@@ -16665,6 +16665,9 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			compilerError("alloc() called outside of arena context (currentArena=0)")
 		}
 
+		// Mark that this program uses arenas
+		fc.usesArenas = true
+
 		// Compile size argument FIRST (before loading arena pointer)
 		fc.compileExpression(call.Args[0])
 		fc.out.Cvttsd2si("rdi", "xmm0") // size in rdi temporarily

@@ -43,22 +43,28 @@ func (o *Out) vfmaddX86VectorToVector(dst, src1, src2, src3 string) {
 	dstReg, dstOk := GetRegister(o.target.Arch(), dst)
 	src1Reg, src1Ok := GetRegister(o.target.Arch(), src1)
 	src2Reg, src2Ok := GetRegister(o.target.Arch(), src2)
-	_, src3Ok := GetRegister(o.target.Arch(), src3)
+	src3Reg, src3Ok := GetRegister(o.target.Arch(), src3)
 	if !dstOk || !src1Ok || !src2Ok || !src3Ok {
 		return
 	}
 
 	// For FMA231: dst = src1 * src2 + src3
-	// We need to arrange as: dst = src2 * src3, where dst initially contains src1
-	// This requires: MOV dst, src3; VFMADD231 dst, src1, src2
-	// For simplicity, documenting the accumulator pattern
+	// The instruction actually does: dst = dst + src1 * src2
+	// So we need to: MOV dst, src3; VFMADD231 dst, src1, src2
 
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "# fma %s = %s * %s + %s\n", dst, src1, src2, src3)
 	}
-	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "vmovupd %s, %s\n", dst, src3)
+	
+	// Move src3 into dst first (required for FMA231 semantics)
+	// Only move if src3 != dst (avoid unnecessary mov)
+	if src3Reg.Encoding != dstReg.Encoding {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "movsd %s, %s\n", dst, src3)
+		}
+		o.MovXmmToXmm(dst, src3)
 	}
+	
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "vfmadd231pd %s, %s, %s:", dst, src1, src2)
 	}

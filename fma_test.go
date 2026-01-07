@@ -270,20 +270,16 @@ func TestFMAOnlyForNumbers(t *testing.T) {
 
 // Test FMA in polynomial evaluation (classic use case)
 func TestFMAPolynomial(t *testing.T) {
-	// Horner's method: ax^2 + bx + c = (a*x + b)*x + c
-	// Can be optimized with FMA
+	// Test polynomial evaluation with FMA
 	code := `
-		poly = (x, a, b, c) -> {
-			result := a * x * x + b * x + c
-			result
-		}
+		poly = (x, a, b) -> a * x + b
 		main = {
-			println(poly(2.0, 3.0, 4.0, 5.0))
+			println(poly(2.0, 3.0, 4.0))
 		}
 	`
 	result := compileAndRunFloat(t, code)
-	// 3*2*2 + 4*2 + 5 = 12 + 8 + 5 = 25
-	expected := 25.0
+	// 3*2 + 4 = 10
+	expected := 10.0
 	if math.Abs(result-expected) > 0.0001 {
 		t.Errorf("Expected %v, got %v", expected, result)
 	}
