@@ -305,10 +305,12 @@ Current state: All functionality working, tests passing, but binary sizes not ye
 **Critical Fixes:**
 - [ ] **URGENT:** Strip unused printf/println components when only basic I/O needed
 - [ ] **URGENT:** Implement static syscall-based printf/println (no libc dependency, ~2KB vs 10KB)
-- [ ] **URGENT:** Merge segments to single RWX (saves ~8KB)
+- [x] **DONE:** Merge segments to single RWX (dynamic ELF now uses 1 LOAD segment instead of 3)
 - [ ] **HIGH:** Compress embedded error messages or make them optional via compiler flag
 - [ ] **HIGH:** Add `-tiny` compiler flag: disables NaN-boxing error handling, minimal runtime
 - [ ] **MEDIUM:** Dead code elimination for error handlers (currently unconditionally included)
+
+**Note:** Segment merging complete (4 headers vs 6, 1 RWX segment vs 3 R/RX/RW). File size unchanged at 21K due to dynamic linker page alignment requirements. Real savings from DCE + static printf implementation.
 
 **Why This Matters:** 64k intros are the most popular demoscene category. Cannot compete at 21KB baseline.
 
