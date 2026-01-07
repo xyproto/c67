@@ -752,7 +752,7 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.eb.Define("fmt_str", "%s\x00")
 	fc.eb.Define("fmt_int", "%ld\n\x00")
 	fc.eb.Define("fmt_float", "%.0f\n\x00") // Print float without decimal places
-	
+
 	// Error messages - only include if safety checks are enabled
 	// These are only needed when checks are compiled into the code
 	if fc.usesLoopCheck {
@@ -863,6 +863,7 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	// Arena initialization is needed only if we actually use arenas
 	// (e.g., for string concat, list operations, etc.)
 	if fc.usesArenas {
+		fc.arenaInitialized = true
 		fmt.Fprintf(os.Stderr, "DEBUG: Initializing arena (usesArenas=%v)\n", fc.usesArenas)
 		fmt.Fprintf(os.Stderr, "DEBUG: usedFunctions has: string_concat=%v, arena_alloc=%v, alloc=%v\n",
 			fc.usedFunctions["_c67_string_concat"],
@@ -9377,11 +9378,8 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.Ret()
 	} // end if upper/lower/trim used
 
-	// Generate arena functions only if arenas are actually used
-	// AND at least one arena function is tracked (means code actually calls arena funcs)
-	if fc.usesArenas && (fc.usedFunctions["_c67_string_concat"] ||
-		fc.usedFunctions["_c67_arena_alloc"] ||
-		fc.usedFunctions["alloc"]) {
+	// Generate arena functions only if arenas are used
+	if fc.usesArenas {
 		// Generate _c67_arena_create(capacity) -> arena_ptr
 		// Creates a new arena with the specified capacity
 		// Argument: rdi = capacity (int64)
