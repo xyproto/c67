@@ -1,0 +1,9 @@
+import libc as c
+
+// Test malloc
+ptr = c.malloc(16)
+println("Allocated:")
+println(ptr)
+
+c.free(ptr)
+println("Done!")
