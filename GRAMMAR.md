@@ -1170,6 +1170,88 @@ From highest to lowest precedence:
 - Right-associative: `**`, all assignments
 - Non-associative: Comparison operators (can't chain)
 
+## Field Access
+
+The dot operator `.` provides field access for both C67 maps and C structs:
+
+### C67 Map Field Access
+
+For C67 maps (the universal type), `.` provides syntactic sugar for hash-based lookup:
+
+```c67
+person = {name: "Alice", age: 30}
+person.name   // Syntactic sugar for person[hash("name")]
+person.age    // Syntactic sugar for person[hash("age")]
+```
+
+**Implementation:**
+- Field name is hashed at compile time
+- Lookup uses optimized SIMD map search
+- Returns 0.0 if field doesn't exist
+
+### C Struct Field Access
+
+For C structs (pointers from C FFI), `.` accesses memory at fixed offsets:
+
+```c67
+import sdl3 as sdl
+import libc as c
+
+// Allocate SDL_Event struct
+event = c.malloc(192)
+
+// Poll for events
+sdl.SDL_PollEvent(event)
+
+// Access struct field (requires struct layout knowledge)
+event_type = event.type  // Accesses memory at struct offset
+
+c.free(event)
+```
+
+**C Struct Field Access Modes:**
+
+1. **With known layout (via cstruct):**
+   ```c67
+   cstruct Point {
+       x as int32
+       y as int32
+   }
+   
+   // Compiler knows offsets: x at 0, y at 4
+   p = c.malloc(Point.size)
+   p.x = 10  // Direct memory write at offset 0
+   p.y = 20  // Direct memory write at offset 4
+   ```
+
+2. **Without known layout (fallback):**
+   ```c67
+   // Compiler doesn't know struct layout
+   // Falls back to map-style lookup
+   event = c.malloc(192)
+   event.type  // Treats as map, returns 0.0 if not found
+   ```
+
+3. **Manual offset access:**
+   ```c67
+   import libc as c
+   
+   // Read uint32 at specific offset
+   read_u32 = (ptr, offset) -> {
+       // TODO: Implement via inline assembly or intrinsic
+       0
+   }
+   
+   event = c.malloc(192)
+   event_type = read_u32(event, 0)  // Read type field at offset 0
+   ```
+
+**Best Practices:**
+- Use `cstruct` declarations for known C struct layouts
+- Field access on C structs requires type information
+- For unknown layouts, use explicit offset calculations
+- C67 maps always work with `.` notation
+
 ## Parsing Rules
 
 ### Minimal Parentheses Philosophy

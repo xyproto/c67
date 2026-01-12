@@ -1,0 +1,12 @@
+// Test struct field access
+import libc as c
+
+// Create a simple map to test
+obj = {x: 10, y: 20}
+
+// Access fields
+a = obj.x
+b = obj.y
+
+println(a)
+println(b)

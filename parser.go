@@ -3893,11 +3893,12 @@ func (p *Parser) parsePostfix() Expression {
 						Args:     []Expression{expr},
 					}
 				} else {
-					// Regular field access - hash the field name and create index expression
-					hashValue := hashStringKey(fieldName)
-					expr = &IndexExpr{
-						List:  expr,
-						Index: &NumberExpr{Value: float64(hashValue)},
+					// Regular field access - use FieldAccessExpr
+					// Codegen will decide if it's C struct access or C67 map access
+					expr = &FieldAccessExpr{
+						Object:    expr,
+						FieldName: fieldName,
+						Offset:    -1, // Unknown offset, will be determined at codegen
 					}
 				}
 			}

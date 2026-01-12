@@ -656,6 +656,24 @@ func (i *IndexExpr) String() string {
 }
 func (i *IndexExpr) expressionNode() {}
 
+// FieldAccessExpr: obj.field (for C structs with known layout)
+// Different from IndexExpr which accesses map elements by key
+// FieldAccessExpr accesses memory at a fixed offset
+type FieldAccessExpr struct {
+	Object    Expression // The struct/pointer expression
+	FieldName string     // Name of the field
+	StructName string    // Name of the C struct type (if known)
+	Offset    int        // Byte offset of field in struct (if known at parse time)
+}
+
+func (f *FieldAccessExpr) String() string {
+	if f.Object == nil {
+		return fmt.Sprintf("FieldAccessExpr{Object=nil, Field=%s}", f.FieldName)
+	}
+	return f.Object.String() + "." + f.FieldName
+}
+func (f *FieldAccessExpr) expressionNode() {}
+
 // SliceExpr: list[start:end:step] or string[start:end:step] (Python-style slicing)
 type SliceExpr struct {
 	List  Expression

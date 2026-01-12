@@ -3855,6 +3855,9 @@ func (fc *C67Compiler) getExprType(expr Expression) string {
 		// Indexing returns the element type
 		// For lists/maps, elements are numbers (float64)
 		return "number"
+	case *FieldAccessExpr:
+		// Field access returns a number (field value)
+		return "number"
 	default:
 		return "unknown"
 	}
@@ -5770,6 +5773,79 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 
 		// Clean up stack (remove saved key/index)
 		fc.out.AddImmToReg("rsp", 16)
+
+	case *FieldAccessExpr:
+		// Struct field access: obj.field
+		// Compile object expression (should be a pointer to struct)
+		fc.compileExpression(e.Object)
+		
+		// xmm0 now contains pointer as float64
+		// Convert to integer pointer in rax
+		fc.out.MovqXmmToReg("rax", "xmm0")
+		
+		// If we know the struct type and field offset, use direct memory access
+		// Otherwise, fall back to map-style hash lookup
+		if e.Offset >= 0 && e.StructName != "" {
+			// Direct memory access at known offset
+			// Read the field value (assuming it's a 32-bit value like SDL event type)
+			// For now, support reading uint32 at offset
+			fc.out.MovMemToReg("edx", "rax", e.Offset) // Load 32-bit value
+			fc.out.MovRegToReg("rax", "rdx")            // Zero-extend to 64-bit
+			fc.out.Cvtsi2sd("xmm0", "rax")              // Convert to float64
+		} else {
+			// Unknown offset - fall back to hash-based map lookup
+			// Hash the field name
+			hashValue := hashStringKey(e.FieldName)
+			
+			// Treat as map: pointer in rax, look up by hash
+			// Load count
+			fc.out.MovMemToXmm("xmm1", "rax", 0)
+			fc.out.Cvttsd2si("rcx", "xmm1")
+			
+			// Simple linear search (can optimize later)
+			fc.out.AddImmToReg("rax", 8) // Skip count, point to first key
+			fc.out.XorRegWithReg("rdx", "rdx") // index = 0
+			
+			// Load search key into xmm2
+			fc.out.MovImmToReg("rbx", fmt.Sprintf("%d", hashValue))
+			fc.out.Cvtsi2sd("xmm2", "rbx")
+			
+			searchLoop := fc.eb.text.Len()
+			// Check if we've searched all entries
+			fc.out.CmpRegToReg("rdx", "rcx")
+			notFoundJump := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpGreaterOrEqual, 0)
+			
+			// Load key at current position
+			fc.out.MovMemToXmm("xmm3", "rax", 0)
+			
+			// Compare with search key
+			fc.out.Ucomisd("xmm3", "xmm2")
+			foundJump := fc.eb.text.Len()
+			fc.out.JumpConditional(JumpEqual, 0)
+			
+			// Not found, advance to next entry
+			fc.out.AddImmToReg("rax", 16) // Skip key+value pair
+			fc.out.IncReg("rdx")
+			backJump := fc.eb.text.Len()
+			fc.out.JumpUnconditional(int32(searchLoop - (backJump + 5)))
+			
+			// Found - load value
+			foundPos := fc.eb.text.Len()
+			fc.patchJumpImmediate(foundJump+2, int32(foundPos-(foundJump+6)))
+			fc.out.MovMemToXmm("xmm0", "rax", 8) // Value is 8 bytes after key
+			doneJump := fc.eb.text.Len()
+			fc.out.JumpUnconditional(0)
+			
+			// Not found - return 0.0
+			notFoundPos := fc.eb.text.Len()
+			fc.patchJumpImmediate(notFoundJump+2, int32(notFoundPos-(notFoundJump+6)))
+			fc.out.XorpdXmm("xmm0", "xmm0")
+			
+			// Patch done jump
+			donePos := fc.eb.text.Len()
+			fc.patchJumpImmediate(doneJump+1, int32(donePos-(doneJump+5)))
+		}
 
 	case *LambdaExpr:
 		// Generate function name for this lambda

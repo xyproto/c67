@@ -1941,6 +1941,41 @@ CStructs have C-compatible memory layout:
 - Can be passed to C functions directly
 - Access via direct pointer arithmetic
 
+### Field Access
+
+Field access using `.` works for both cstructs and C FFI pointers:
+
+**With cstruct declaration (known layout):**
+```c67
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
+
+event = c.malloc(SDL_Event.size)
+sdl.SDL_PollEvent(event)
+
+// Direct memory access at known offset
+event_type = event.type  // Reads uint32 at offset 0
+```
+
+**Without struct declaration (fallback to map):**
+```c67
+// Compiler doesn't know struct layout
+event = c.malloc(192)
+sdl.SDL_PollEvent(event)
+
+// Falls back to map-style lookup
+// Returns 0.0 if field doesn't exist
+event_type = event.type  
+```
+
+**For optimal performance:**
+1. Declare cstructs for known C types
+2. Use field access syntax: `obj.field`
+3. Compiler generates direct memory access
+4. No hash lookups, no overhead
+
 ## Memory Management
 
 ### Stack vs Heap
