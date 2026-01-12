@@ -1403,8 +1403,10 @@ func main() {
 	if len(inputFiles) > 0 {
 		firstArg := inputFiles[0]
 		// Check if it's a subcommand or looks like the new CLI style
+		// Support both .v67 and .vibe67 extensions
+		isVibeFile := strings.HasSuffix(firstArg, ".vibe67") || strings.HasSuffix(firstArg, ".v67")
 		if firstArg == "build" || firstArg == "run" || firstArg == "test" || firstArg == "help" ||
-			(strings.HasSuffix(firstArg, ".vibe67") && *codeFlag == "") {
+			(isVibeFile && *codeFlag == "") {
 			// Use new CLI system
 			// Only pass outputFilename if user explicitly provided it
 			cliOutputPath := ""

@@ -15,9 +15,14 @@ import (
 // - vibe67 (default: compile current directory or show help)
 // - vibe67 build <file> (compile to executable)
 // - vibe67 run <file> (compile and run immediately)
-// - vibe67 <file.vibe67> (shorthand for build)
+// - vibe67 <file.v67|.vibe67> (shorthand for build)
 //
 // Also supports shebang execution: #!/usr/bin/vibe67
+
+// isVibeFile checks if a filename has a Vibe67 extension (.v67 or .vibe67)
+func isVibeFile(filename string) bool {
+	return strings.HasSuffix(filename, ".v67") || strings.HasSuffix(filename, ".vibe67")
+}
 
 // CommandContext holds the execution context for a CLI command
 type CommandContext struct {
@@ -51,8 +56,8 @@ func RunCLI(args []string, platform Platform, verbose, quiet bool, optTimeout fl
 	}
 
 	// Check for shebang execution
-	// If first arg is a .vibe67 file and it starts with #!, we're in shebang mode
-	if len(args) > 0 && strings.HasSuffix(args[0], ".vibe67") {
+	// If first arg is a .v67 or .vibe67 file and it starts with #!, we're in shebang mode
+	if len(args) > 0 && isVibeFile(args[0]) {
 		content, err := os.ReadFile(args[0])
 		if err == nil && len(content) > 2 && content[0] == '#' && content[1] == '!' {
 			// Shebang mode - run the file with remaining args
@@ -87,8 +92,8 @@ func RunCLI(args []string, platform Platform, verbose, quiet bool, optTimeout fl
 		return nil
 
 	default:
-		// Check if it's a .vibe67 file (shorthand for build)
-		if strings.HasSuffix(subcmd, ".vibe67") {
+		// Check if it's a .v67 or .vibe67 file (shorthand for build)
+		if isVibeFile(subcmd) {
 			return cmdBuild(ctx, args)
 		}
 
@@ -149,7 +154,11 @@ func cmdBuild(ctx *CommandContext, args []string) error {
 
 	// If still no output path, use first input filename without extension
 	if outputPath == "" {
-		outputPath = strings.TrimSuffix(filepath.Base(inputFiles[0]), ".vibe67")
+		baseName := filepath.Base(inputFiles[0])
+		// Remove .v67 or .vibe67 extension
+		baseName = strings.TrimSuffix(baseName, ".vibe67")
+		baseName = strings.TrimSuffix(baseName, ".v67")
+		outputPath = baseName
 		if ctx.Platform.OS == OSWindows {
 			outputPath += ".exe"
 		}
