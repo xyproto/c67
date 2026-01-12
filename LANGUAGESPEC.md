@@ -2497,6 +2497,24 @@ pow(x, y)
 abs(x)
 ```
 
+### Type Introspection
+
+```c67
+// Get size in bytes of a cstruct type
+cstruct Point {
+    x as int32
+    y as int32
+}
+
+size = sizeof(Point)  // Returns 8.0 (8 bytes)
+
+// Use with allocation
+ptr = c.malloc(sizeof(Point))
+arena {
+    p := alloc(sizeof(Point)) as Point
+}
+```
+
 ## Error Handling
 
 ### Result Type Design

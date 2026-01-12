@@ -994,6 +994,7 @@ defer c.free(ptr)
 - Control flow: `@`, match blocks, `ret`
 - Core I/O: `print`, `println`, `printf` (and error/exit variants)
 - List operations: `head()`, `tail()`
+- Type introspection: `sizeof(Type)` for cstruct sizes
 - Keywords: `arena`, `unsafe`, `cstruct`, `class`, `defer`, etc.
 
 **Everything else via:**
@@ -1218,18 +1219,23 @@ c.free(event)
        y as int32
    }
    
-   // Compiler knows offsets: x at 0, y at 4
-   p = c.malloc(Point.size)
+   // Allocate with sizeof()
+   p = c.malloc(sizeof(Point))
    p.x = 10  // Direct memory write at offset 0
    p.y = 20  // Direct memory write at offset 4
    ```
 
-2. **Without known layout (fallback):**
+2. **With arena allocation (recommended):**
    ```c67
-   // Compiler doesn't know struct layout
-   // Falls back to map-style lookup
-   event = c.malloc(192)
-   event.type  // Treats as map, returns 0.0 if not found
+   cstruct SDL_Event {
+       type as uint32
+       timestamp as uint64
+   }
+   
+   arena {
+       event := alloc(sizeof(SDL_Event)) as SDL_Event
+       // Use event with type information for field access
+   }
    ```
 
 3. **Manual offset access:**
@@ -1248,7 +1254,9 @@ c.free(event)
 
 **Best Practices:**
 - Use `cstruct` declarations for known C struct layouts
-- Field access on C structs requires type information
+- Use `sizeof(Type)` to get struct size in bytes
+- Prefer arena allocation with `alloc(sizeof(Type)) as Type`
+- Field access on C structs requires type information via `as` casting
 - For unknown layouts, use explicit offset calculations
 - C67 maps always work with `.` notation
 

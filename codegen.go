@@ -13346,6 +13346,29 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.patchJumpImmediate(donePos+1, int32(doneTarget-(donePos+5)))
 		return
 
+	case "sizeof":
+		// sizeof(Type) - return size in bytes of a cstruct type
+		if len(call.Args) != 1 {
+			compilerError("sizeof() requires exactly 1 argument (type name)")
+		}
+
+		// Argument should be an identifier representing a cstruct type
+		typeName, ok := call.Args[0].(*IdentExpr)
+		if !ok {
+			compilerError("sizeof() argument must be a type name (identifier)")
+		}
+
+		// Look up the cstruct
+		cstruct, exists := fc.cstructs[typeName.Name]
+		if !exists {
+			compilerError("sizeof(): unknown cstruct type '%s'", typeName.Name)
+		}
+
+		// Return the size as a float64
+		fc.out.MovImmToReg("rax", fmt.Sprintf("%d", cstruct.Size))
+		fc.out.Cvtsi2sd("xmm0", "rax")
+		return
+
 	case "peek32":
 		// peek32(ptr, offset) - read uint32 from memory at ptr+offset
 		// Used for reading C struct fields when layout is known
@@ -18841,6 +18864,7 @@ func checkForwardReferences(program *Program) []string {
 		"write_i8": true, "write_u8": true, "write_i16": true, "write_u16": true,
 		"write_i32": true, "write_u32": true, "write_i64": true, "write_u64": true, "write_f32": true, "write_f64": true,
 		"call": true, "arena_create": true, "arena_alloc": true, "arena_reset": true, "arena_destroy": true,
+		"sizeof": true,
 	}
 
 	// Mark builtins as defined
@@ -18958,6 +18982,8 @@ func getUnknownFunctions(program *Program) []string {
 		"write_i32": true, "write_u32": true, "write_i64": true, "write_u64": true, "write_f32": true, "write_f64": true,
 		// Memory peek operations (for reading C struct fields)
 		"peek32": true, "peek8": true,
+		// Type introspection
+		"sizeof": true,
 		// Dynamic calling
 		"call": true, "arena_create": true, "arena_alloc": true, "arena_reset": true, "arena_destroy": true,
 	}

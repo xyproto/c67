@@ -1,0 +1,2 @@
+x := c.malloc(100)
+println(x)

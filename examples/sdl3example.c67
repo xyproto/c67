@@ -1,6 +1,8 @@
 import sdl3 as sdl
 
 // Define SDL_Event structure for direct field access
+// NOTE: This only declares the common header fields.
+// The actual SDL_Event is a union that is 128 bytes on Linux x86_64.
 cstruct SDL_Event {
     type as uint32,
     timestamp as uint64
@@ -59,8 +61,9 @@ defer sdl.SDL_DestroyTexture(tex)
 // Main loop - display until window closed or ESC pressed
 running := 1
 
-// Allocate typed event buffer once - enables direct field access!
-event := c.malloc(192) as SDL_Event
+// Allocate event buffer with actual SDL_Event size (128 bytes)
+// Cast to our partial cstruct type for field access to common header
+event := c.malloc(128) as SDL_Event
 null_ptr := 0
 
 @ running > 0 max inf {
