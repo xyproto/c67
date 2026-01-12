@@ -1,0 +1,1 @@
+printf("Bool: %b\n", 1)

@@ -1,0 +1,3 @@
+ptr := c.malloc(100)
+printf("malloc returned: %.0f\n", ptr)
+c.free(ptr)
