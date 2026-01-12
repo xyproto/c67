@@ -53,26 +53,14 @@ tex = sdl.SDL_CreateTextureFromSurface(renderer, bmp) or! {
 // Clean up the surface when the program ends
 defer sdl.SDL_DestroyTexture(tex)
 
-// Main event loop - run until user closes window
-running = 1
-
-// Allocate SDL_Event struct (192 bytes in SDL3)
+// Main loop - display image for a few seconds
+// Allocate SDL_Event struct once (192 bytes in SDL3)
 event = c.malloc(192)
 
-@ running > 0 max inf {
-    // Poll for events
-    has_event = sdl.SDL_PollEvent(event)
-    
-    has_event {
-        0 => {
-            // No events this frame
-        }
-        ~> {
-            // Got an event - just quit on any event for now
-            // TODO: properly read event.type field
-            running = 0
-        }
-    }
+// Run for approximately 5 seconds (300 frames * 16ms ~= 5s)
+@ frame in 0..<300 {
+    // Poll pending event to keep window responsive
+    sdl.SDL_PollEvent(event)
 
     // Clear screen
     sdl.SDL_RenderClear(renderer)
@@ -87,6 +75,7 @@ event = c.malloc(192)
     sdl.SDL_Delay(16)  // ~60 FPS
 }
 
+// Free the event buffer
 c.free(event)
 
 // That's it

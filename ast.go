@@ -660,10 +660,10 @@ func (i *IndexExpr) expressionNode() {}
 // Different from IndexExpr which accesses map elements by key
 // FieldAccessExpr accesses memory at a fixed offset
 type FieldAccessExpr struct {
-	Object    Expression // The struct/pointer expression
-	FieldName string     // Name of the field
-	StructName string    // Name of the C struct type (if known)
-	Offset    int        // Byte offset of field in struct (if known at parse time)
+	Object     Expression // The struct/pointer expression
+	FieldName  string     // Name of the field
+	StructName string     // Name of the C struct type (if known)
+	Offset     int        // Byte offset of field in struct (if known at parse time)
 }
 
 func (f *FieldAccessExpr) String() string {
