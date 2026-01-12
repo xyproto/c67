@@ -3885,6 +3885,9 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 	}
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "DEBUG compileExpression: expr type = %T\n", expr)
+		if fa, ok := expr.(*FieldAccessExpr); ok {
+			fmt.Fprintf(os.Stderr, "DEBUG compileExpression: FieldAccessExpr - Object=%T, FieldName=%s\n", fa.Object, fa.FieldName)
+		}
 	}
 	switch e := expr.(type) {
 	case *NumberExpr:
@@ -5802,11 +5805,24 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 			structType = e.StructName
 		} else if ident, ok := e.Object.(*IdentExpr); ok {
 			// Check if variable has a cstruct type annotation
+			if VerboseMode {
+				fmt.Fprintf(os.Stderr, "DEBUG: Field access on identifier '%s'\n", ident.Name)
+			}
 			if typ, exists := fc.varTypes[ident.Name]; exists {
+				if VerboseMode {
+					fmt.Fprintf(os.Stderr, "DEBUG: varTypes['%s'] = '%s'\n", ident.Name, typ)
+				}
 				// Check if it's a cstruct type
 				if _, isCStruct := fc.cstructs[typ]; isCStruct {
 					structType = typ
+					if VerboseMode {
+						fmt.Fprintf(os.Stderr, "DEBUG: Found cstruct type '%s'\n", typ)
+					}
+				} else if VerboseMode {
+					fmt.Fprintf(os.Stderr, "DEBUG: Type '%s' is not a cstruct\n", typ)
 				}
+			} else if VerboseMode {
+				fmt.Fprintf(os.Stderr, "DEBUG: Variable '%s' not in varTypes\n", ident.Name)
 			}
 		}
 
@@ -5848,7 +5864,19 @@ func (fc *C67Compiler) compileExpression(expr Expression) {
 							fc.out.Cvtsi2sd("xmm0", "rdx")
 						case "uint32", "int32", "u32", "i32":
 							// Read 32-bit value
-							fc.out.MovMemToReg("edx", "rax", field.Offset) // Load 32-bit value
+							// Manual emit: mov edx, [rax + offset]
+							// No REX prefix for 32-bit operation
+							if field.Offset == 0 {
+								// mov edx, [rax]
+								fc.out.Emit([]byte{0x8b, 0x10}) // ModRM: 00 010 000 = [rax] -> edx
+							} else if field.Offset < 128 {
+								// mov edx, [rax + offset8]
+								fc.out.Emit([]byte{0x8b, 0x50, byte(field.Offset)}) // ModRM: 01 010 000 = [rax+disp8] -> edx
+							} else {
+								// mov edx, [rax + offset32]
+								fc.out.Emit([]byte{0x8b, 0x90}) // ModRM: 10 010 000 = [rax+disp32] -> edx
+								fc.out.Emit([]byte{byte(field.Offset), byte(field.Offset >> 8), byte(field.Offset >> 16), byte(field.Offset >> 24)})
+							}
 							fc.out.MovRegToReg("rax", "rdx")               // Zero-extend to 64-bit
 							fc.out.Cvtsi2sd("xmm0", "rax")                 // Convert to float64
 						case "uint64", "int64", "u64", "i64":
@@ -12954,7 +12982,7 @@ func (fc *C67Compiler) compileCFunctionCall(libName string, funcName string, arg
 			// On Windows and Linux, pointers are 64-bit and returned in RAX correctly
 			// NOTE: When signature is unknown (returnType == ""), assume pointer/64-bit return
 			// This is safer than assuming 32-bit, and works for SDL functions
-			fc.out.Cvtsi2sd("xmm0", "rax")
+			fc.out.MovqRegToXmm("xmm0", "rax")
 		} else {
 			// Integer result in rax - convert to float64 for C67
 			// On Windows: bool returns are 1 byte (AL), int returns are 4 bytes (EAX)

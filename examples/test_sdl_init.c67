@@ -1,19 +1,9 @@
 import sdl3 as sdl
 
-println("About to call SDL_Init")
-println(sdl.SDL_INIT_VIDEO)
-
-result = sdl.SDL_Init(sdl.SDL_INIT_VIDEO)
-println("SDL_Init returned:")
-println(result)
-
-result {
-    0 => {
-        println("SDL initialized successfully!")
-        sdl.SDL_Quit()
-    }
-    ~> {
-        println("SDL_Init failed!")
-        println(sdl.SDL_GetError())
-    }
+println("About to init SDL")
+sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! {
+    exitf("SDL_Init failed\n")
 }
+println("SDL initialized successfully")
+sdl.SDL_Quit()
+println("SDL quit successfully")

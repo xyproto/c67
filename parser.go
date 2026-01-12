@@ -3862,18 +3862,36 @@ func (p *Parser) parsePostfix() Expression {
 						expr = &CallExpr{Function: namespacedName, Args: args}
 					}
 				} else {
-					// Check for special property access on Result types
-					if fieldName == "error" {
-						// .error property - extract error code from Result type
-						// This will be handled specially in codegen
-						expr = &CallExpr{
-							Function: "_error_code_extract",
-							Args:     []Expression{expr},
+					// Not a function call - could be field access or constant access
+					// Check if this is a C import namespace (namespace.CONSTANT)
+					if p.cImports[ident.Name] {
+						// C import constant access (e.g., sdl.SDL_INIT_VIDEO)
+						if fieldName == "error" {
+							// .error property - extract error code from Result type
+							expr = &CallExpr{
+								Function: "_error_code_extract",
+								Args:     []Expression{expr},
+							}
+						} else {
+							// C constant access - create NamespacedIdentExpr
+							expr = &NamespacedIdentExpr{Namespace: ident.Name, Name: fieldName}
 						}
 					} else {
-						// Could be a C constant (sdl.SDL_INIT_VIDEO) or namespace access
-						// We'll create a special NamespacedIdentExpr to distinguish at compile time
-						expr = &NamespacedIdentExpr{Namespace: ident.Name, Name: fieldName}
+						// Regular field access on a C67 variable
+						if fieldName == "error" {
+							// .error property - extract error code from Result type
+							expr = &CallExpr{
+								Function: "_error_code_extract",
+								Args:     []Expression{expr},
+							}
+						} else {
+							// Regular field access - use FieldAccessExpr
+							expr = &FieldAccessExpr{
+								Object:    expr,
+								FieldName: fieldName,
+								Offset:    -1,
+							}
+						}
 					}
 				}
 			} else {

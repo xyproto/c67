@@ -1,9 +1,17 @@
-import libc as c
+import sdl3 as sdl
 
-// Test malloc
-ptr = c.malloc(16)
-println("Allocated:")
-println(ptr)
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
 
-c.free(ptr)
-println("Done!")
+// Test c.malloc
+ptr := c.malloc(192) as SDL_Event
+ptr {
+    0 => {
+        println("malloc returned NULL")
+    }
+    ~> {
+        println("malloc succeeded")
+    }
+}
