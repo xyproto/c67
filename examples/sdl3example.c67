@@ -1,3 +1,5 @@
+import libc as c
+
 // Import the SDL3 library (auto detect header files and library files with pkg-config on Linux, use SDL3.dll and include/* on Windows)
 import sdl3 as sdl
 
@@ -51,8 +53,26 @@ tex = sdl.SDL_CreateTextureFromSurface(renderer, bmp) or! {
 // Clean up the surface when the program ends
 defer sdl.SDL_DestroyTexture(tex)
 
-// Main rendering loop. Run for approximately 2 seconds (20 frames * 100ms = 2s)
-@ frame in 0..<20 {
+// Main event loop - run until user closes window
+running = 1
+
+// Allocate SDL_Event struct (192 bytes in SDL3)
+event = c.malloc(192)
+
+@ running > 0 max inf {
+    // Poll for events
+    has_event = sdl.SDL_PollEvent(event)
+    
+    has_event {
+        0 => {
+            // No events this frame
+        }
+        ~> {
+            // Got an event - just quit on any event for now
+            // TODO: properly read event.type field
+            running = 0
+        }
+    }
 
     // Clear screen
     sdl.SDL_RenderClear(renderer)
@@ -63,8 +83,10 @@ defer sdl.SDL_DestroyTexture(tex)
     // Present the rendered frame
     sdl.SDL_RenderPresent(renderer)
 
-    // Delay to maintain framerate
-    sdl.SDL_Delay(100)
+    // Delay to maintain framerate  
+    sdl.SDL_Delay(16)  // ~60 FPS
 }
+
+c.free(event)
 
 // That's it
