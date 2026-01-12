@@ -90,3 +90,4 @@ examples/test_cli_args
 examples/test_cstring_access
 examples/test_fstring
 examples/test_match
+examples/test_loop_simple
