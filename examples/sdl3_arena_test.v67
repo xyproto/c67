@@ -1,0 +1,53 @@
+import sdl3 as sdl
+
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
+
+main = {
+    sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! {
+        exitf("SDL_Init failed: %s\n", sdl.SDL_GetError())
+    }
+    defer sdl.SDL_Quit()
+
+    window = sdl.SDL_CreateWindow("SDL3 Arena Test", 640, 480, 0) or! {
+        exitf("Failed to create window: %s\n", sdl.SDL_GetError())
+    }
+    defer sdl.SDL_DestroyWindow(window)
+
+    renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+        exitf("Failed to create renderer: %s\n", sdl.SDL_GetError())
+    }
+    defer sdl.SDL_DestroyRenderer(renderer)
+
+    println("SDL3 Initialized with Arena allocation!")
+
+    running := 1
+    event := 0
+    
+    // Use arena and alloc for the event
+    arena {
+        event <- alloc(128) as SDL_Event
+        
+        @ running > 0 max 100 { // Limit iterations for automated test
+            @ sdl.SDL_PollEvent(event) > 0 max 10 {
+                printf("Event type: %d\n", event.type)
+                event.type {
+                    0x100 => { running <- 0 } // SDL_EVENT_QUIT
+                    0x300 => { running <- 0 } // SDL_EVENT_KEY_DOWN
+                }
+            }
+
+            sdl.SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255)
+            sdl.SDL_RenderClear(renderer)
+            sdl.SDL_RenderPresent(renderer)
+            sdl.SDL_Delay(16)
+            
+            // Just for testing, exit after some frames if no events
+            running <- 0
+        }
+    }
+    
+    println("Done!")
+}

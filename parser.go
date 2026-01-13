@@ -1023,19 +1023,7 @@ func (p *Parser) parseStatement() Statement {
 
 	// Check for @ (either loop @N, loop @ ident, or jump @N)
 	if p.current.Type == TOKEN_AT {
-		// Look ahead to distinguish loop vs jump
-		// Loop: @N identifier in ... or @ identifier in ...
-		// Jump: @N (followed by newline, semicolon, or })
-		if p.peek.Type == TOKEN_NUMBER || p.peek.Type == TOKEN_IDENT || p.peek.Type == TOKEN_LBRACE || p.peek.Type == TOKEN_NEWLINE {
-			// We need to peek further to distinguish loop from jump
-			// For now, let's just parse as loop if it matches the pattern
-			// Otherwise treat as jump
-
-			// Simple heuristic: if @ NUMBER IDENTIFIER or @ IDENTIFIER or @ {, it's a loop
-			// We can't easily look 2 tokens ahead, so we'll just try parsing as loop first
-			return p.parseLoopStatement()
-		}
-		p.error("expected number or identifier after @ (e.g., @1 i in..., @ i in...)")
+		return p.parseLoopStatement()
 	}
 
 	// Check for indexed assignment: ptr[offset] <- value
@@ -2401,9 +2389,21 @@ func (p *Parser) parseLoopStatement() Statement {
 		// Check if this is @N (numbered loop) or @ ident (simple loop)
 		// But also check for condition loop: @ NUMBER max N { }
 		if p.current.Type == TOKEN_NUMBER {
-			// Check if this is a condition loop: @ NUMBER max N {
-			// If peek is 'max', it's a condition loop, not a jump
-			if p.peek.Type != TOKEN_MAX {
+			// Check if this is a condition loop: @ NUMBER ...
+			// If peek is 'max', it's a condition loop.
+			// If peek is an operator, it's likely a condition expression starting with a number.
+			isOp := p.peek.Type == TOKEN_GT || p.peek.Type == TOKEN_LT ||
+				p.peek.Type == TOKEN_GE || p.peek.Type == TOKEN_LE ||
+				p.peek.Type == TOKEN_EQ || p.peek.Type == TOKEN_NE ||
+				p.peek.Type == TOKEN_PLUS || p.peek.Type == TOKEN_MINUS ||
+				p.peek.Type == TOKEN_STAR || p.peek.Type == TOKEN_SLASH ||
+				p.peek.Type == TOKEN_MOD || p.peek.Type == TOKEN_AND ||
+				p.peek.Type == TOKEN_OR || p.peek.Type == TOKEN_XOR ||
+				p.peek.Type == TOKEN_AMP_B || p.peek.Type == TOKEN_PIPE_B ||
+				p.peek.Type == TOKEN_CARET_B || p.peek.Type == TOKEN_LTLT_B ||
+				p.peek.Type == TOKEN_GTGT_B
+
+			if p.peek.Type != TOKEN_MAX && !isOp {
 				// This is @N jump syntax, handle it in the jump statement section
 				p.current.Type = TOKEN_AT // restore token type
 				goto handleJump

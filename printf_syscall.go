@@ -593,6 +593,12 @@ func (fc *Vibe67Compiler) compilePrintfSyscall(call *CallExpr, formatStr *String
 				// xmm0 contains float - use precise formatter
 				fc.emitSyscallPrintFloatPrecise(precision)
 
+			case 'p': // Pointer (hex)
+				fc.compileExpression(arg)
+				// xmm0 contains the address as float - convert to int
+				fc.out.Cvttsd2si("rax", "xmm0")
+				fc.emitSyscallPrintHex()
+
 			case 't', 'b': // Boolean (t=true/false, b=yes/no)
 				fc.compileExpression(arg)
 				// xmm0 contains value - print "true" or "false"
@@ -1091,12 +1097,106 @@ func (fc *Vibe67Compiler) emitSyscallPrintFloatPrecise(precision int) {
 		fc.out.MovByteRegToMem("dl", "rsp", 64+i)
 	}
 
-	// ===== Print 6 digits INLINE =====
+	// Write
 	fc.out.MovImmToReg("rax", "1")
 	fc.out.MovImmToReg("rdi", "1")
 	fc.out.LeaMemToReg("rsi", "rsp", 64)
 	fc.out.MovImmToReg("rdx", fmt.Sprintf("%d", precision))
 	fc.out.Syscall()
 
-	fc.out.AddImmToReg("rsp", 160) // Match the initial allocation
+	// Clean up stack
+	fc.out.AddImmToReg("rsp", 160)
+}
+
+// emitSyscallPrintHex emits code to print an integer in rax as hex (0x...)
+func (fc *Vibe67Compiler) emitSyscallPrintHex() {
+	fc.out.PushReg("rbx")
+	fc.out.PushReg("rcx")
+	fc.out.PushReg("rdx")
+	fc.out.PushReg("rax") // Save original value
+
+	// Print "0x"
+	fc.emitSyscallPrintLiteral("0x")
+
+	fc.out.PopReg("rax") // Restore value
+
+	// Check if 0
+	fc.out.Emit([]byte{0x48, 0x85, 0xc0}) // test rax, rax
+
+	// If 0, just print "0"
+	zeroJump := fc.eb.text.Len()
+	fc.out.Emit([]byte{0x75, 0x00}) // jnz (will patch)
+
+	fc.emitSyscallPrintLiteral("0")
+
+	doneJump := fc.eb.text.Len()
+	fc.out.JumpUnconditional(0) // jmp (will patch)
+
+	// Not zero
+	// Patch zeroJump
+	nonZeroStart := fc.eb.text.Len()
+	fc.eb.text.Bytes()[zeroJump+1] = byte(nonZeroStart - (zeroJump + 2))
+
+	// Convert to string in buffer (hex)
+	fc.out.SubImmFromReg("rsp", 32)
+	fc.out.LeaMemToReg("rbx", "rsp", 32) // Start at rsp+32
+	fc.out.MovImmToReg("rcx", "16")
+
+	convertStart := fc.eb.text.Len()
+	fc.out.XorRegWithReg("rdx", "rdx")
+	fc.out.Emit([]byte{0x48, 0xf7, 0xf1}) // div rcx (unsigned divide)
+	// remainder in rdx
+
+	// Convert remainder to hex char
+	// if rdx < 10: add '0'
+	// else: add 'a' - 10
+
+	fc.out.Emit([]byte{0x48, 0x83, 0xfa, 0x0a}) // cmp rdx, 10
+
+	hexCharJump := fc.eb.text.Len()
+	fc.out.Emit([]byte{0x7c, 0x00}) // jl (will patch) - if < 10
+
+	// >= 10
+	fc.out.AddImmToReg("rdx", 87) // 'a' - 10 = 97 - 10 = 87
+	// Jump to store
+	storeJump := fc.eb.text.Len()
+	fc.out.Emit([]byte{0xeb, 0x00}) // jmp (will patch)
+
+	// < 10
+	lessThan10Start := fc.eb.text.Len()
+	fc.eb.text.Bytes()[hexCharJump+1] = byte(lessThan10Start - (hexCharJump + 2))
+	fc.out.AddImmToReg("rdx", 48) // '0'
+
+	// Store
+	storeStart := fc.eb.text.Len()
+	fc.eb.text.Bytes()[storeJump+1] = byte(storeStart - (storeJump + 2))
+
+	fc.out.DecReg("rbx")
+	fc.out.Emit([]byte{0x88, 0x13}) // mov [rbx], dl
+
+	fc.out.Emit([]byte{0x48, 0x85, 0xc0}) // test rax, rax
+	convertLoopJump := fc.eb.text.Len()
+	fc.out.Emit([]byte{0x75, 0x00}) // jnz (will patch)
+	fc.eb.text.Bytes()[convertLoopJump+1] = byte(convertStart - (convertLoopJump + 2))
+
+	// Calculate length: rsp+32 - rbx
+	fc.out.LeaMemToReg("rdx", "rsp", 32)
+	fc.out.SubRegFromReg("rdx", "rbx")
+
+	// Write using syscall
+	fc.out.MovImmToReg("rax", "1")
+	fc.out.MovImmToReg("rdi", "1")
+	fc.out.MovRegToReg("rsi", "rbx")
+	fc.out.Syscall()
+
+	fc.out.AddImmToReg("rsp", 32)
+
+	// Patch doneJump
+	doneStart := fc.eb.text.Len()
+	// jmp unconditional is 5 bytes (E9 xx xx xx xx)
+	fc.patchJumpImmediate(doneJump+1, int32(doneStart-(doneJump+5)))
+
+	fc.out.PopReg("rdx")
+	fc.out.PopReg("rcx")
+	fc.out.PopReg("rbx")
 }

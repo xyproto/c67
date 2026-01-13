@@ -12822,8 +12822,8 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 					if isNullPointer {
 						// Already set rax to 0 above
 					} else {
-						// Pointer type - extract raw 64-bit value (not a float conversion!)
-						fc.out.MovqXmmToReg("rax", "xmm0")
+						// Pointer type - convert numeric float value to integer address
+						fc.out.Cvttsd2si("rax", "xmm0")
 					}
 
 				case "int", "i32", "int32":
@@ -12982,7 +12982,9 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 			// On Windows and Linux, pointers are 64-bit and returned in RAX correctly
 			// NOTE: When signature is unknown (returnType == ""), assume pointer/64-bit return
 			// This is safer than assuming 32-bit, and works for SDL functions
-			fc.out.MovqRegToXmm("xmm0", "rax")
+			// We use Cvtsi2sd to convert the address (integer) to a float value
+			// This preserves the numeric value of the pointer (up to 53 bits precision)
+			fc.out.Cvtsi2sd("xmm0", "rax")
 		} else {
 			// Integer result in rax - convert to float64 for Vibe67
 			// On Windows: bool returns are 1 byte (AL), int returns are 4 bytes (EAX)
@@ -13027,7 +13029,9 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 			// On Windows and Linux, pointers are 64-bit and returned in RAX correctly
 			// NOTE: When signature is unknown (returnType == ""), assume pointer/64-bit return
 			// This is safer than assuming 32-bit, and works for SDL functions
-			fc.out.MovqRegToXmm("xmm0", "rax")
+			// We use Cvtsi2sd to convert the address (integer) to a float value
+			// This preserves the numeric value of the pointer (up to 53 bits precision)
+			fc.out.Cvtsi2sd("xmm0", "rax")
 		} else {
 			// Integer result in rax - convert to float64 for Vibe67
 			// On Windows: bool returns are 1 byte (AL), int returns are 4 bytes (EAX)
