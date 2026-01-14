@@ -1,0 +1,20 @@
+import c
+
+// Test: or! with raw bitcast should detect NULL pointer with BLOCK
+null_ptr := 0 as cptr
+
+result := null_ptr or! {
+    println("or! block executed correctly")
+    42
+}
+
+printf("result = %f\n", result)
+
+result {
+    42 => {
+        println("NULL correctly replaced with 42 from block")
+    }
+    ~> {
+        println("ERROR: got unexpected value")
+    }
+}

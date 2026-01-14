@@ -1,0 +1,15 @@
+import c
+
+// Create a function that returns NULL
+get_null = () -> {
+    0 as cptr
+}
+
+// Test if or! detects it
+ptr := get_null()! or! {
+    println("or! block executed - NULL detected correctly")
+    ret 0
+}
+
+printf("ERROR: or! block not executed, ptr = %p\n", ptr as cptr)
+ret 1
