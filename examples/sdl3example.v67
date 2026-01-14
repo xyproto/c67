@@ -22,15 +22,17 @@ sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! {
 defer sdl.SDL_Quit()
 
 // Create window, or exit with an error
-window = sdl.SDL_CreateWindow("Hello World!", width, height, 0) or! {
+window = sdl.SDL_CreateWindow("Hello World!", width, height, 0)! or! {
     exitf("Failed to create window: %s\n", sdl.SDL_GetError())
 }
+
+printf("Window pointer: %f\n", window)
 
 // Call SDL_DestroyWindow when the program ends (before SDL_Quit)
 defer sdl.SDL_DestroyWindow(window)
 
 // Create renderer, or exit with an error
-renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+renderer = sdl.SDL_CreateRenderer(window, 0)! or! {
     exitf("Failed to create renderer: %s\n", sdl.SDL_GetError())
 }
 
@@ -38,12 +40,12 @@ renderer = sdl.SDL_CreateRenderer(window, 0) or! {
 defer sdl.SDL_DestroyRenderer(renderer)
 
 // Load BMP file, or exit with an error
-file = sdl.SDL_IOFromFile("img/grumpy-cat.bmp", "rb") or! {
+file = sdl.SDL_IOFromFile("img/grumpy-cat.bmp", "rb")! or! {
     exitf("Error reading file: %s\n", sdl.SDL_GetError())
 }
 
 // Load surface from file, or exit with an error
-bmp = sdl.SDL_LoadBMP_IO(file, 1) or! {
+bmp = sdl.SDL_LoadBMP_IO(file, 1)! or! {
     exitf("Error creating surface: %s\n", sdl.SDL_GetError())
 }
 
@@ -51,7 +53,7 @@ bmp = sdl.SDL_LoadBMP_IO(file, 1) or! {
 defer sdl.SDL_DestroySurface(bmp)
 
 // Create texture from surface, or exit with an error
-tex = sdl.SDL_CreateTextureFromSurface(renderer, bmp) or! {
+tex = sdl.SDL_CreateTextureFromSurface(renderer, bmp)! or! {
     exitf("Error creating texture: %s\n", sdl.SDL_GetError())
 }
 
@@ -61,9 +63,10 @@ defer sdl.SDL_DestroyTexture(tex)
 // Main loop - display until window closed or ESC pressed
 running := 1
 
-// Allocate event buffer with actual SDL_Event size (128 bytes)
+// Allocate event buffer with actual SDL_Event size
+// Use ! to get raw pointer bits (preserves all 64 bits)
 // Cast to our partial cstruct type for field access to common header
-event := c.malloc(128) as SDL_Event
+event := c.malloc(sizeof(SDL_Event))! as SDL_Event
 null_ptr := 0
 
 @ running > 0 max inf {
@@ -71,22 +74,22 @@ null_ptr := 0
     @ sdl.SDL_PollEvent(event) > 0 max inf {
         // Direct field access now works thanks to type casting!
         event.type {
-            256 => { 
+            256 => {
                 // SDL_EVENT_QUIT (0x100) - window close button
-                running = 0 
+                running <- 0
             }
             768 => {
                 // SDL_EVENT_KEY_DOWN (0x300)
                 // Read scancode from offset 16 (inside SDL_KeyboardEvent)
                 scancode := peek32(event, 16)
                 scancode {
-                    41 => { 
+                    41 => {
                         // SDL_SCANCODE_ESCAPE = 41
-                        running = 0 
+                        running <- 0
                     }
                     20 => {
                         // SDL_SCANCODE_Q = 20
-                        running = 0
+                        running <- 0
                     }
                 }
             }
@@ -102,8 +105,10 @@ null_ptr := 0
     // Present the rendered frame
     sdl.SDL_RenderPresent(renderer)
 
-    // Delay to maintain framerate  
+    // Delay to maintain framerate
     sdl.SDL_Delay(16)  // ~60 FPS
 }
+
+c.free(event)
 
 // That's it - all resources cleaned up by defer statements
