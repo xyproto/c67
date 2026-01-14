@@ -6368,7 +6368,7 @@ func (fc *C67Compiler) compileCastExpr(expr *CastExpr) {
 		// Already float64, nothing to do
 		// This is the native C67 type
 
-	case "ptr":
+	case "ptr", "cptr":
 		// Pointer cast: value is already in xmm0 as float64 (reinterpreted bits)
 		// No conversion needed - bits pass through as-is
 		// Used for NULL pointers and raw memory addresses
@@ -6578,7 +6578,9 @@ func (fc *C67Compiler) compileCastExpr(expr *CastExpr) {
 		// else: already a number, no conversion needed
 
 	default:
-		compilerError("unknown cast type '%s'", expr.Type)
+		// Unknown type - treat as type annotation (e.g., cstruct names)
+		// No code generation, value stays in xmm0 as-is
+		// This allows: event := malloc(128) as SDL_Event
 	}
 }
 

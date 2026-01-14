@@ -2012,6 +2012,7 @@ CStructs have C-compatible memory layout:
 - NO `malloc`, `free`, `realloc`, or `calloc` as builtins
 - Use arena allocators (recommended): `allocate()` within `arena {}` blocks
 - Or use C FFI (explicit): `c.malloc`, `c.free`, `c.realloc`, `c.calloc`
+- For zero-initialized memory, use `c.calloc(count, size)` instead of `c.malloc(size)`
 
 ```c67
 // Recommended: arena allocator
@@ -2025,6 +2026,9 @@ result = arena {
 // Alternative: explicit C FFI
 ptr := c.malloc(1024)
 defer c.free(ptr)
+
+// For C structs that need zero-initialization:
+event := c.calloc(1, 128)! as SDL_Event  // Allocates and zeros 128 bytes
 ```
 
 **List operations:**
