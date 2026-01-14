@@ -3733,7 +3733,7 @@ func keysOf(m map[string]*CHeaderConstants) []string {
 }
 
 // getExprType returns the type of an expression at compile time
-// Returns: "string", "number", "list", "map", "cstring", or "unknown"
+// Returns: "string", "number", "list", "map", "cstr", or "unknown"
 func (fc *Vibe67Compiler) getExprType(expr Expression) string {
 	switch e := expr.(type) {
 	case *StringExpr:
@@ -3785,7 +3785,7 @@ func (fc *Vibe67Compiler) getExprType(expr Expression) string {
 
 						// Map C return types to Vibe67 types
 						if returnType == "char*" || returnType == "const char*" {
-							return "cstring"
+							return "cstr"
 						} else if isPointerType(returnType) {
 							return "cpointer"
 						} else if returnType == "void" {
@@ -3810,8 +3810,8 @@ func (fc *Vibe67Compiler) getExprType(expr Expression) string {
 
 		// Function calls - check return type for Vibe67 built-ins
 		stringFuncs := map[string]bool{
-			"str": true, "read_file": true,
-			"upper": true, "lower": true, "trim": true,
+			"read_file": true,
+			"upper":     true, "lower": true, "trim": true,
 			"_error_code_extract": true,
 		}
 		if stringFuncs[e.Function] {
@@ -3845,16 +3845,16 @@ func (fc *Vibe67Compiler) getExprType(expr Expression) string {
 		// Cast expressions have the type they're cast to
 		// Map cast types to Vibe67 types
 		switch e.Type {
-		case "string", "str":
+		case "string":
 			return "string"
-		case "cstr", "cstring":
-			return "cstring"
+		case "cstr":
+			return "cstr"
 		case "list":
 			return "list"
 		case "map":
 			return "map"
-		case "ptr", "pointer":
-			return "pointer"
+		case "cptr":
+			return "cptr"
 		default:
 			// Check if it's a cstruct type
 			if _, exists := fc.cstructs[e.Type]; exists {
@@ -6626,7 +6626,7 @@ func (fc *Vibe67Compiler) compileCastExpr(expr *CastExpr) {
 		// Already float64, nothing to do
 		// This is the native Vibe67 type
 
-	case "ptr":
+	case "cptr":
 		// Pointer cast: value is already in xmm0 as float64 (reinterpreted bits)
 		// No conversion needed - bits pass through as-is
 		// Used for NULL pointers and raw memory addresses
@@ -6648,7 +6648,7 @@ func (fc *Vibe67Compiler) compileCastExpr(expr *CastExpr) {
 		fc.out.MovMemToXmm("xmm0", "rsp", 0)
 		fc.out.AddImmToReg("rsp", StackSlotSize)
 
-	case "string", "str":
+	case "string":
 		// Convert value to Vibe67 string
 		// First check if already a string
 		exprType := fc.getExprType(expr.Expr)
@@ -6984,7 +6984,7 @@ func (fc *Vibe67Compiler) compileUnsafeExpr(expr *UnsafeExpr) {
 			case "int64", "int32", "int16", "int8", "uint64", "uint32", "uint16", "uint8":
 				// Convert integer to float64
 				fc.out.Cvtsi2sd("xmm0", "rax")
-			case "pointer", "ptr", "cstr":
+			case "cptr", "cstr":
 				// Convert pointer/cstr to float64 (treated as integer)
 				fc.out.Cvtsi2sd("xmm0", "rax")
 			default:
@@ -7388,7 +7388,7 @@ func (fc *Vibe67Compiler) compileUnsafeCast(dest string, cast *CastExpr) {
 			fc.out.MovMemToXmm("xmm0", "rbp", -offset)
 
 			// Handle specific cast types
-			if cast.Type == "cstr" || cast.Type == "cstring" {
+			if cast.Type == "cstr" {
 				// Convert Vibe67 string to C null-terminated string
 				// xmm0 contains pointer to Vibe67 string map
 				// _vibe67_string_to_cstr is an internal runtime function, not external
@@ -12741,7 +12741,7 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 					info.castType = "double"
 				} else if paramType != "" {
 					if isPointerType(paramType) {
-						info.castType = "pointer"
+						info.castType = "cptr"
 					} else if strings.Contains(paramType, "char") && strings.Contains(paramType, "*") {
 						info.castType = "cstr"
 					} else {
@@ -12753,7 +12753,7 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 					if exprType == "number" {
 						info.castType = "double"
 					} else if exprType == "list" || exprType == "map" {
-						info.castType = "pointer"
+						info.castType = "cptr"
 					} else {
 						info.castType = "int"
 					}
@@ -12805,7 +12805,7 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 			}
 
 			// If this is a null pointer literal and we need a pointer type, just set rax to 0
-			if isNullPointer && (castType == "ptr" || castType == "pointer" || castType == "cstr" || castType == "cstring") {
+			if isNullPointer && (castType == "cptr" || castType == "cstr") {
 				// Zero register for null pointer
 				fc.out.XorRegToReg("rax", "rax")
 			} else {
@@ -12832,7 +12832,7 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 			} else {
 				// Convert to integer or pointer
 				switch castType {
-				case "cstr", "cstring":
+				case "cstr":
 					if isNullPointer {
 						// Already set rax to 0 above
 					} else if isStringLiteral {
@@ -12856,7 +12856,7 @@ func (fc *Vibe67Compiler) compileCFunctionCall(libName string, funcName string, 
 						// Result in rax (C string pointer)
 					}
 
-				case "ptr", "pointer":
+				case "cptr":
 					if isNullPointer {
 						// Already set rax to 0 above
 					} else {
@@ -16966,7 +16966,7 @@ func (fc *Vibe67Compiler) compileCall(call *CallExpr) {
 			// Determine if this is an integer/pointer argument or float argument
 			isIntArg := false
 			switch argType {
-			case "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "ptr", "cstr":
+			case "int8", "int16", "int32", "int64", "uint8", "uint16", "uint32", "uint64", "cptr", "cstr":
 				isIntArg = true
 			case "float32", "float64":
 				isIntArg = false

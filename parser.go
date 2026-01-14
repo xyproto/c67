@@ -3762,10 +3762,10 @@ func (p *Parser) parsePostfix() Expression {
 						// C floating point types
 						"float": true, "float32": true, "float64": true, "double": true,
 						// C string/pointer types
-						"cstr": true, "cstring": true, "ptr": true, "pointer": true,
+						"cstr": true, "cptr": true,
 						// Vibe67 types
-						"number": true, "num": true, "string": true, "str": true,
-						"list": true, "map": true, "address": true, "addr": true,
+						"number": true, "string": true,
+						"list": true, "map": true, "addr": true,
 						"bool": true, "boolean": true,
 						// Type aliases
 						"void": true,

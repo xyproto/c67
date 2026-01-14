@@ -43,7 +43,7 @@ mixed = [42, "hello", 3.14]  // Boxed values with type tags
 - **Complex**: `complex64` `complex128` (real + imaginary components)
 - **Strings**: UTF-8 (default), UTF-16, UTF-32, C strings
 - **Collections**: Arrays (fixed-size), slices (dynamic), maps, sets, trees
-- **C FFI**: `cptr` `cstring` `cint` `clong` `cfloat` `cdouble` `cbool`
+- **C FFI**: `cptr` `cstr` `cint` `clong` `cfloat` `cdouble` `cbool`
 
 **Performance Model:**
 
@@ -74,7 +74,7 @@ They enable zero-cost abstractions through compile-time specialization.
 
 ### String Types
 
-- `str` - UTF-8 string (default)
+- `string` - UTF-8 string (default)
 - `utf8` - UTF-8 string (explicit)
 - `utf16` - UTF-16 string
 - `utf32` - UTF-32 string
@@ -90,7 +90,7 @@ They enable zero-cost abstractions through compile-time specialization.
 
 ### Foreign C Types
 
-- `cstring` - C `char*`
+- `cstr` - C `char*`
 - `cptr` - C pointer (void*)
 - `cint` - C `int` (32-bit)
 - `clong` - C `long` (64-bit)
@@ -627,7 +627,7 @@ c_type          = "i8" | "i16" | "i32" | "i64" | "i128"
                 | "u8" | "u16" | "u32" | "u64" | "u128"
                 | "byte" | "rune"
                 | "f32" | "f64" | "f128"
-                | "cptr" | "cstring" | "cint" | "clong" | "cfloat" | "cdouble" | "cbool"
+                | "cptr" | "cstr" | "cint" | "clong" | "cfloat" | "cdouble" | "cbool"
                 | "int8" | "int16" | "int32" | "int64"  // Legacy
                 | "uint8" | "uint16" | "uint32" | "uint64"  // Legacy
                 | "float32" | "float64" ;  // Legacy
@@ -645,7 +645,7 @@ unsafe_statement = "unsafe" type_cast block [ block ] [ block ] ;
 type_cast       = "int8" | "int16" | "int32" | "int64"
                 | "uint8" | "uint16" | "uint32" | "uint64"
                 | "float32" | "float64"
-                | "number" | "string" | "list" | "address"
+                | "number" | "string" | "list" | "addr"
                 | "packed" | "aligned" ;
 
 assignment      = identifier [ ":" type_annotation ] ("=" | ":=" | "<-") expression
@@ -675,7 +675,7 @@ string_type     = "str" | "utf8" | "utf16" | "utf32" ;
 
 collection_type = "array" | "slice" | "list" | "map" | "set" | "tree" ;
 
-foreign_type    = "cstring" | "cptr" | "cint" | "clong"
+foreign_type    = "cstr" | "cptr" | "cint" | "clong"
                 | "cfloat" | "cdouble" | "cbool" | "cvoid" ;
 
 indexed_expr    = identifier "[" expression "]" ;
@@ -821,7 +821,7 @@ lambda_body     = [ "->" type_annotation ] ( block | expression [ match_block ] 
 //   (x: num, y: num) -> num { x + y }             // Parameter and return types
 //   (name: str) -> str { upper(name) }            // String function
 //   (ptr: cptr) -> cint { sdl.SDL_DoSomething(ptr) }  // C types
-//   greet(name: str) -> str { f"Hello, {name}!" } // Function definition with types
+//   greet(name: string) -> string { f"Hello, {name}!" } // Function definition with types
 //
 // Inferred lambda syntax (works ONLY in assignment context):
 //   main = { println("hello") }                   // Inferred: main = -> { println("hello") }
@@ -1044,7 +1044,7 @@ quaternion
 
 **String types:**
 ```
-str       // UTF-8 string (default)
+string    // UTF-8 string (default)
 utf8      // UTF-8 string (explicit)
 utf16     // UTF-16 string
 utf32     // UTF-32 string
@@ -1062,13 +1062,13 @@ tree      // Binary tree
 
 **Foreign C types:**
 ```
-cstring cptr cint clong cfloat cdouble cbool cvoid
+cstr cptr cint clong cfloat cdouble cbool cvoid
 ```
 
 **Legacy type cast keywords (for `unsafe` blocks and `cstruct`):**
 ```
 int8 int16 int32 int64 uint8 uint16 uint32 uint64 float32 float64
-number string address packed aligned
+number string addr packed aligned
 ```
 
 **Usage:**
@@ -1076,7 +1076,7 @@ number string address packed aligned
 // Type annotations
 x: i32 = 42
 count: u64 = 100
-name: str = "Alice"
+name: string = "Alice"
 data: [10]byte = ...     // 10-byte array
 ch: rune = 'A'
 ptr: cptr = sdl.SDL_CreateWindow(...)!
@@ -2332,14 +2332,14 @@ Type annotations are **compile-time metadata** that guide type inference and opt
 ```vibe67
 x: i32 = 42                    // 32-bit signed integer
 count: u64 = 100               // 64-bit unsigned integer
-name: str = "Alice"            // UTF-8 string
+name: string = "Alice"            // UTF-8 string
 data: [10]byte = ...           // 10-byte array
 ch: rune = 'A'                 // Unicode code point (i32)
 value: f64 = 3.14159           // 64-bit float
 
 // C types for FFI
 ptr: cptr = sdl.SDL_CreateWindow("Hi", 640, 480, 0)!
-err: cstring = sdl.SDL_GetError()
+err: cstr = sdl.SDL_GetError()
 result: cint = sdl.SDL_Init(sdl.SDL_INIT_VIDEO)
 ```
 
@@ -2349,15 +2349,15 @@ result: cint = sdl.SDL_Init(sdl.SDL_INIT_VIDEO)
 add(x: i32, y: i32) -> i32 { x + y }
 
 // String functions
-greet(name: str) -> str { f"Hello, {name}!" }
+greet(name: string) -> string { f"Hello, {name}!" }
 
 // C FFI functions
-create_window(title: str, w: i32, h: i32) -> cptr {
+create_window(title: string, w: i32, h: i32) -> cptr {
     sdl.SDL_CreateWindow(title, w, h, 0)!
 }
 
 // Mixed types
-format_number(x: f64) -> str {
+format_number(x: f64) -> string {
     f"Value: {x}"
 }
 ```
@@ -2386,12 +2386,12 @@ z: complex64 = ...
 | `byte`     | Alias for `u8`       | 8-bit GPR     | `b: byte = 0xFF`       |
 | `rune`     | Unicode (i32)        | 32-bit GPR    | `ch: rune = 'A'`       |
 | `f32`-`f64`| Native float         | XMM/FPU       | `pi: f64 = 3.14`       |
-| `str`      | UTF-8 + length       | ptr + len     | `name: str = "Hi"`     |
+| `string`   | UTF-8 + length       | ptr + len     | `name: string = "Hi"`  |
 | `[N]T`     | Fixed array          | Stack         | `buf: [10]i32 = ...`   |
 | `[]T`      | Dynamic slice        | ptr + len+cap | `items: []i32 = ...`   |
 | `map[K]V`  | Hash map             | Heap          | `m: map[str]i32 = ...` |
 | `cptr`     | C pointer            | 64-bit GPR    | `p: cptr = c.fn()!`    |
-| `cstring`  | C `char*`            | 64-bit GPR    | `s: cstring = c.fn()`  |
+| `cstr`     | C `char*`            | 64-bit GPR    | `s: cstr = c.fn()`     |
 | `cint`     | C `int`              | 32-bit GPR    | `n: cint = c.fn()`     |
 
 ### FFI Marshalling
@@ -2401,7 +2401,7 @@ Type annotations guide automatic conversions at C FFI boundaries:
 **Vibe67 → C conversions:**
 ```vibe67
 // Vibe67 string → C string (automatic conversion)
-title: str = "Window"
+title: string = "Window"
 window = sdl.SDL_CreateWindow(title, 640, 480, 0)!  // str → char*
 
 // Vibe67 integers → C integers (native)
@@ -2415,11 +2415,11 @@ sdl.SDL_CreateWindow("Title", width, height, 0)!
 // C pointer → cptr (use ! for raw bitcast)
 window: cptr = sdl.SDL_CreateWindow(...)!  // Preserves all 64 bits
 
-// C char* → cstring
-err: cstring = sdl.SDL_GetError()
+// C char* → cstr
+err: cstr = sdl.SDL_GetError()
 
-// Convert cstring → str when needed
-err_str: str = str(err)
+// Convert cstr → string when needed
+err_str: string = str(err)
 ```
 
 ### Type Inference
