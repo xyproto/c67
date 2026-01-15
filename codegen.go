@@ -679,8 +679,8 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
 
 	// Arenas will be enabled on-demand when needed (string concat, list operations, etc.)
-	// TODO: Currently always enabled to ensure compatibility
-	fc.usesArenas = true
+	// Disabled by default for simple programs
+	fc.usesArenas = false
 
 	// Check if main() is called at top level (to decide whether to auto-call main)
 	fc.mainCalledAtTopLevel = fc.detectMainCallInTopLevel(program.Statements)
@@ -844,11 +844,17 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.out.PushReg("rbx")
 	
 	// Maintain 16-byte stack alignment required by x86_64 ABI
-	// On entry, the stack should have: return address (8 bytes) making rsp+8 aligned to 16
-	// After push rbp: rsp -= 8, now rsp is 16-byte aligned
-	// After push rbx: rsp -= 8, now rsp+8 is 16-byte aligned
-	// We need rsp to be 16-byte aligned before calls, so subtract 8 more
-	fc.out.SubImmFromReg("rsp", 8)
+	// Linux/Unix: On entry, return address (8 bytes) makes rsp+8 aligned to 16
+	//   After push rbp: rsp -= 8, now rsp is 16-byte aligned
+	//   After push rbx: rsp -= 8, now rsp+8 is 16-byte aligned
+	//   We need rsp to be 16-byte aligned before calls, so subtract 8 more
+	// Windows PE: On entry, rsp is already 16-byte aligned (no return address)
+	//   After push rbp: rsp -= 8, now rsp is at offset 8 (misaligned)
+	//   After push rbx: rsp -= 8, now rsp is 16-byte aligned
+	//   No additional adjustment needed
+	if fc.eb.target.OS() != OSWindows {
+		fc.out.SubImmFromReg("rsp", 8)
+	}
 
 	if fc.maxStackOffset > 0 {
 		alignedSize := int64((fc.maxStackOffset + 15) & ^15)
@@ -961,22 +967,22 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 
 	if needsLibcExit {
 		// Use libc's exit() for proper cleanup (flushes buffers)
-		// Windows: first argument in rcx
 		if fc.eb.target.OS() == OSWindows {
-			// On Windows, we can't reliably call exit() without CRT initialization
-			// Just return from entry point and let OS clean up
-			// Convert exit code to rax for return value
-			fc.out.MovRegToReg("rax", "rdi")
+			// Windows x64: Use ExitProcess from kernel32.dll instead of msvcrt exit()
+			// This avoids CRT initialization issues
+			// Exit code is in rdi, move to ecx (32-bit exit code)
+			fc.out.MovRegToReg("rcx", "rdi")
 			
-			// Restore stack and return
-			if fc.maxStackOffset > 0 {
-				alignedSize := int64((fc.maxStackOffset + 15) & ^15)
-				fc.out.AddImmToReg("rsp", alignedSize)
-			}
-			fc.out.AddImmToReg("rsp", 8) // Undo alignment padding
-			fc.out.PopReg("rbx")
-			fc.out.PopReg("rbp")
-			fc.out.Ret()
+			// Allocate shadow space for Windows x64 ABI (32 bytes)
+			fc.allocateShadowSpace()
+			
+			// Register ExitProcess as coming from kernel32
+			fc.cFunctionLibs["ExitProcess"] = "kernel32"
+			
+			// Call ExitProcess from kernel32.dll
+			fc.trackFunctionCall("ExitProcess")
+			fc.eb.GenerateCallInstruction("ExitProcess")
+			// Note: ExitProcess never returns, so no cleanup needed
 		} else {
 			// Linux/Unix: call exit() with code in rdi
 			fc.trackFunctionCall("exit")

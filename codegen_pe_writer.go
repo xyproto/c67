@@ -90,17 +90,18 @@ func (fc *C67Compiler) writePE(program *Program, outputPath string) error {
 func mapLibraryToDLL(libName string) string {
 	// Common library name mappings
 	dllMap := map[string]string{
-		"sdl3":    "SDL3.dll",
-		"sdl2":    "SDL2.dll",
-		"raylib":  "raylib.dll",
-		"sqlite3": "sqlite3.dll",
-		"opengl":  "opengl32.dll",
-		"glu":     "glu32.dll",
-		"glfw":    "glfw3.dll",
-		"curl":    "libcurl.dll",
-		"png":     "libpng.dll",
-		"jpeg":    "libjpeg.dll",
-		"zlib":    "zlib1.dll",
+		"kernel32": "kernel32.dll",
+		"sdl3":     "SDL3.dll",
+		"sdl2":     "SDL2.dll",
+		"raylib":   "raylib.dll",
+		"sqlite3":  "sqlite3.dll",
+		"opengl":   "opengl32.dll",
+		"glu":      "glu32.dll",
+		"glfw":     "glfw3.dll",
+		"curl":     "libcurl.dll",
+		"png":      "libpng.dll",
+		"jpeg":     "libjpeg.dll",
+		"zlib":     "zlib1.dll",
 	}
 
 	if dll, ok := dllMap[libName]; ok {
