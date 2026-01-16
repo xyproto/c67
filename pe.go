@@ -480,6 +480,10 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 	codeSize := uint32(eb.text.Len())
 	dataSize := uint32(eb.rodata.Len() + eb.data.Len())
 
+	// Align sizes to file alignment
+	codeSize = alignTo(codeSize, peFileAlign)
+	dataSize = alignTo(dataSize, peFileAlign)
+
 	fmt.Fprintf(os.Stderr, "Aligned: codeSize=%d (0x%X), dataSize=%d (0x%X)\n",
 		codeSize, codeSize, dataSize, dataSize)
 
