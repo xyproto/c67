@@ -480,13 +480,6 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 	codeSize := uint32(eb.text.Len())
 	dataSize := uint32(eb.rodata.Len() + eb.data.Len())
 
-	fmt.Fprintf(os.Stderr, "=== PE writePEWithLibraries ===\n")
-	fmt.Fprintf(os.Stderr, "text.Len()=%d (0x%X)\n", eb.text.Len(), eb.text.Len())
-
-	// Align sizes to file alignment
-	codeSize = alignTo(codeSize, peFileAlign)
-	dataSize = alignTo(dataSize, peFileAlign)
-
 	fmt.Fprintf(os.Stderr, "Aligned: codeSize=%d (0x%X), dataSize=%d (0x%X)\n",
 		codeSize, codeSize, dataSize, dataSize)
 
@@ -500,6 +493,8 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 
 	dataRawAddr := textRawAddr + codeSize
 	dataVirtualAddr := textVirtualAddr + alignTo(codeSize, peSectionAlign)
+
+	fmt.Fprintf(os.Stderr, "Section layout: textRawAddr=0x%X, dataRawAddr=0x%X\n", textRawAddr, dataRawAddr)
 
 	// Build import data
 	idataVirtualAddr := dataVirtualAddr + alignTo(dataSize, peSectionAlign)
@@ -527,6 +522,7 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 	if err := eb.WritePEHeaderWithImports(entryPointRVA, codeSize, dataSize, idataSize, idataVirtualAddr); err != nil {
 		return err
 	}
+	fmt.Fprintf(os.Stderr, "[1] After header: pos=%d\n", eb.elf.Len())
 
 	// Write section headers
 	eb.WritePESectionHeader(".text", codeSize, textVirtualAddr, codeSize, textRawAddr,
@@ -535,14 +531,17 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 		scnCntInitData|scnMemRead|scnMemWrite)
 	eb.WritePESectionHeader(".idata", idataSize, idataVirtualAddr, idataRawSize, idataRawAddr,
 		scnCntInitData|scnMemRead) // Import section
+	fmt.Fprintf(os.Stderr, "[2] After section headers: pos=%d\n", eb.elf.Len())
 
 	// Pad headers to file alignment
 	currentPos := uint32(dosHeaderSize + dosStubSize + peSignatureSize + coffHeaderSize +
 		optionalHeaderSize + 3*peSectionHeaderSize)
 	padding := int(headerSize - currentPos)
+	fmt.Fprintf(os.Stderr, "[3] Padding %d bytes\n", padding)
 	if padding > 0 {
 		eb.ELFWriter().WriteN(0, padding)
 	}
+	fmt.Fprintf(os.Stderr, "[4] After padding: pos=%d (should be 0x%X)\n", eb.elf.Len(), textRawAddr)
 
 	// Assign addresses to all data symbols (strings, constants)
 	// For PE, the .data section contains both rodata and data
@@ -579,19 +578,21 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 	textAddrFull := peImageBase + uint64(textVirtualAddr)
 	eb.PatchPCRelocations(textAddrFull, rodataAddr, eb.rodata.Len())
 
-	// Write sections
-	// .text section
+	fmt.Fprintf(os.Stderr, "[5] Writing .text: %d bytes\n", eb.text.Len())
 	eb.ELFWriter().WriteBytes(eb.text.Bytes())
 	if pad := int(codeSize) - eb.text.Len(); pad > 0 {
 		eb.ELFWriter().WriteN(0, pad)
+		fmt.Fprintf(os.Stderr, "[6] Padded .text: %d bytes\n", pad)
 	}
-
+	fmt.Fprintf(os.Stderr, "[7] After .text: pos=%d, expected dataRawAddr=0x%X\n", eb.elf.Len(), dataRawAddr)
 	// .data section (combine rodata and data)
+	fmt.Fprintf(os.Stderr, "[8] Writing .data: rodata=%d + data=%d bytes\n", eb.rodata.Len(), eb.data.Len())
 	eb.ELFWriter().WriteBytes(eb.rodata.Bytes())
 	eb.ELFWriter().WriteBytes(eb.data.Bytes())
 	if pad := int(dataSize) - eb.rodata.Len() - eb.data.Len(); pad > 0 {
 		eb.ELFWriter().WriteN(0, pad)
 	}
+	fmt.Fprintf(os.Stderr, "[9] After .data: pos=%d\n", eb.elf.Len())
 
 	// .idata section (imports)
 	eb.ELFWriter().WriteBytes(importData)
@@ -600,6 +601,7 @@ func (eb *ExecutableBuilder) writePEWithLibraries(outputPath string, libraries m
 	}
 
 	// Write to file
+	fmt.Fprintf(os.Stderr, "[FINAL] File size: %d bytes\n", eb.elf.Len())
 	if err := os.WriteFile(outputPath, eb.elf.Bytes(), 0755); err != nil {
 		return fmt.Errorf("failed to write PE file: %v", err)
 	}
