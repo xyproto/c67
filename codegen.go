@@ -891,7 +891,6 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 
 	// Jump over lambda functions to reach the main evaluation code
 	skipLambdasJump := fc.eb.text.Len()
-	fmt.Fprintf(os.Stderr, "LAMBDA SKIP: Jump at pos=%d (0x%X)\n", skipLambdasJump, skipLambdasJump)
 	fc.out.JumpUnconditional(0)
 	skipLambdasEnd := fc.eb.text.Len()
 
@@ -900,40 +899,27 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 
 	// Patch the jump to skip over lambdas
 	skipLambdasTarget := fc.eb.text.Len()
-	displacement := int32(skipLambdasTarget - skipLambdasEnd)
-	fmt.Fprintf(os.Stderr, "LAMBDA SKIP: Patching jump at pos=%d, target=%d (0x%X), displacement=%d (0x%X)\n",
-		skipLambdasJump+1, skipLambdasTarget, skipLambdasTarget, displacement, displacement)
-	fc.patchJumpImmediate(skipLambdasJump+1, displacement)
+	fc.patchJumpImmediate(skipLambdasJump+1, int32(skipLambdasTarget-skipLambdasEnd))
 
 	// Evaluate main (if it exists) to get the exit code BEFORE cleaning up arenas
 	_, exists := fc.variables["main"]
-	fmt.Fprintf(os.Stderr, "MAIN EVAL: exists=%v, pos before=%d (0x%X)\n", exists, fc.eb.text.Len(), fc.eb.text.Len())
 	if exists {
 		if fc.lambdaVars["main"] {
 			if !fc.mainCalledAtTopLevel {
 				// TEMPORARY FIX: Skip auto-call to avoid corruption
-				fmt.Fprintf(os.Stderr, "MAIN EVAL: Skipping auto-call (temporary fix), setting xmm0=0 at pos=%d\n", fc.eb.text.Len())
 				fc.out.XorRegWithReg("xmm0", "xmm0")
 			} else {
-				fmt.Fprintf(os.Stderr, "MAIN EVAL: main already called, setting xmm0=0 at pos=%d\n", fc.eb.text.Len())
 				fc.out.XorRegWithReg("xmm0", "xmm0")
 			}
 		} else {
-			fmt.Fprintf(os.Stderr, "MAIN EVAL: Loading main value at pos=%d\n", fc.eb.text.Len())
 			fc.compileExpression(&IdentExpr{Name: "main"})
 		}
 	} else {
-		fmt.Fprintf(os.Stderr, "MAIN EVAL: No main, setting xmm0=0 at pos=%d\n", fc.eb.text.Len())
 		fc.out.XorRegWithReg("xmm0", "xmm0")
 	}
-	fmt.Fprintf(os.Stderr, "MAIN EVAL: after evaluation, pos=%d (0x%X)\n", fc.eb.text.Len(), fc.eb.text.Len())
 
 	// Convert float64 result in xmm0 to int32 in rdi (for exit code)
-	posBeforeConv := fc.eb.text.Len()
 	fc.out.Emit([]byte{0xf2, 0x48, 0x0f, 0x2c, 0xf8})
-	posAfterConv := fc.eb.text.Len()
-	fmt.Fprintf(os.Stderr, "EXIT CONVERSION: pos before=%d (0x%X), after=%d (0x%X), wrote %d bytes\n",
-		posBeforeConv, posBeforeConv, posAfterConv, posAfterConv, posAfterConv-posBeforeConv)
 
 	// Lambda functions were already generated and jumped over before main evaluation
 
