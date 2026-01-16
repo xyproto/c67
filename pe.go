@@ -920,6 +920,9 @@ func (eb *ExecutableBuilder) PatchPECallsToIAT(iatMap map[string]uint32, textVir
 		iatAddrRVA := uint64(iatRVA)                    // IAT RVA (relative to image base)
 
 		displacement := int64(iatAddrRVA) - int64(ripRVA)
+		
+		fmt.Fprintf(os.Stderr, "  IAT: %s iatRVA=0x%X, dispPos=0x%X, ripRVA=0x%X, disp=0x%X (%d)\n",
+			funcName, iatAddrRVA, dispPos, ripRVA, uint32(displacement), displacement)
 
 		if displacement < -0x80000000 || displacement > 0x7FFFFFFF {
 			oversizedDisplacements = append(oversizedDisplacements, funcName)
