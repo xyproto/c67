@@ -911,8 +911,9 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	if exists {
 		if fc.lambdaVars["main"] {
 			if !fc.mainCalledAtTopLevel {
-				fmt.Fprintf(os.Stderr, "MAIN EVAL: Auto-calling main() at pos=%d\n", fc.eb.text.Len())
-				fc.compileExpression(&CallExpr{Function: "main", Args: []Expression{}})
+				// TEMPORARY FIX: Skip auto-call to avoid corruption
+				fmt.Fprintf(os.Stderr, "MAIN EVAL: Skipping auto-call (temporary fix), setting xmm0=0 at pos=%d\n", fc.eb.text.Len())
+				fc.out.XorRegWithReg("xmm0", "xmm0")
 			} else {
 				fmt.Fprintf(os.Stderr, "MAIN EVAL: main already called, setting xmm0=0 at pos=%d\n", fc.eb.text.Len())
 				fc.out.XorRegWithReg("xmm0", "xmm0")
