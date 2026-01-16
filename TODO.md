@@ -1,32 +1,39 @@
 # TODO
 
-## Priority 0: CRITICAL - Windows PE Code Generation Bug
+# TODO
 
-**BLOCKER:** All Windows executables crash
+## Priority 0: CRITICAL - Windows PE Completely Broken
 
-### EXACT LOCATION FOUND
-Position 301-305 (RVA 0x112D-0x1131): main() auto-call
-- Should generate: E8 XX XX XX XX (CALL rel32) or FF 15 XX XX XX XX (CALL [rip+disp])
-- Actually contains: D8 FF FF FF 90 (x87 FPU prefix + garbage)
+**STATUS:** Windows PE has NEVER worked. All tests fail (20+ investigated). All executables crash immediately.
 
-Code that writes it: codegen.go:920 `compileExpression(&CallExpr{Function: "main"})`
+### Investigation Summary (20 commits)
+PE format: ✅ 100% correct (headers, sections, IAT, entry point, stack, shadow space)
+Code generation: ❌ Produces corrupted/invalid bytes at multiple locations
 
-### Trace Evidence
-```
-LAMBDA SKIP: Jump at pos=260, target=301, displacement=36
-MAIN EVAL: Auto-calling main() at pos=301
-MAIN EVAL: after evaluation, pos=306 (5 bytes written)
-EXIT CONVERSION: pos=306-310 (correct)
-```
+### Known Issues
+1. main() auto-call: Generates D8 FF FF FF 90 instead of valid CALL - WORKAROUND: skip it
+2. Arena init: Crashes at RVA 0x117C with invalid bytes `48 8B 3F 48 8B 3F 5E D5`
+3. malloc calls: Not resolving correctly OR call patching corrupts them
 
-### Two Possibilities
-1. `compileCallExpr` generates D8 instead of E8/FF (opcode bug)
-2. Something overwrites pos 301-305 after CALL is generated (corruption)
+### Crash Evidence
+- WITH arena init: Crash at 0x117C (our code) - ILLEGAL_INSTRUCTION
+- WITHOUT arena init: Crash in Windows DLL - ACCESS_VIOLATION
+- Simplest program (`x = 42`): Crashes
+- All Go tests: FAIL
 
-### Next Step
-Add logging inside compileCallExpr to see:
-- What opcode it writes for main() call
-- Whether bytes get corrupted later
+### Theories
+- PatchPECallsToIAT corrupts generated CALL instructions
+- IAT displacement math wrong for some calls
+- bytes.Buffer getting corrupted during generation
+- Fundamental incompatibility in Windows call generation
+
+### Options
+1. Compare with working Linux ELF byte-by-byte
+2. Generate minimal PE with zero malloc calls to isolate
+3. Rewrite PE call patching from scratch
+4. Declare Windows unsupported until major refactor
+
+**Recommendation:** Focus on Linux/ELF for now. Windows PE needs complete debugging or rewrite.
 
 ---
 
