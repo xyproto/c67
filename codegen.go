@@ -828,13 +828,6 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 		fc.eb.DefineWritable("_global_"+varName, "\x00\x00\x00\x00\x00\x00\x00\x00") // 8 bytes for float64
 	}
 
-	// currentArena is already set to 1 in NewC67Compiler (representing meta-arena[0])
-	// Arena initialization is needed only if we actually use arenas
-	// (e.g., for string concat, list operations, etc.)
-	if fc.usesArenas {
-		fc.initializeMetaArenaAndGlobalArena()
-	}
-
 	// Function prologue - set up stack frame for main code
 	fc.out.PushReg("rbp")
 	fc.out.MovRegToReg("rbp", "rsp")
@@ -862,6 +855,14 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 			fmt.Fprintf(os.Stderr, "Allocating %d bytes of stack space (maxStackOffset=%d)\n", alignedSize, fc.maxStackOffset)
 		}
 		fc.out.SubImmFromReg("rsp", alignedSize)
+	}
+
+	// currentArena is already set to 1 in NewC67Compiler (representing meta-arena[0])
+	// Arena initialization is needed only if we actually use arenas
+	// (e.g., for string concat, list operations, etc.)
+	// IMPORTANT: This must come AFTER stack frame setup so malloc calls work correctly on Windows
+	if fc.usesArenas {
+		fc.initializeMetaArenaAndGlobalArena()
 	}
 
 	fc.pushDeferScope()
