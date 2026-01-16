@@ -942,6 +942,17 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 		fmt.Fprintf(os.Stderr, "DEBUG: Exit code conversion complete, value in rdi\n")
 	}
 
+	// Lambda functions were already generated and jumped over before main evaluation
+
+	// Generate runtime helpers BEFORE cleanup code so labels exist when we patch calls
+	// For PE, this must happen before we call any arena functions in cleanup
+	if fc.eb.target.IsPE() {
+		if VerboseMode {
+			fmt.Fprintf(os.Stderr, "DEBUG: Generating runtime helpers for PE (before cleanup)\n")
+		}
+		fc.generateRuntimeHelpers()
+	}
+
 	// Save exit code on stack before cleanup (rdi will be clobbered by cleanup calls)
 	fc.out.PushReg("rdi")
 
@@ -1002,13 +1013,8 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 
 	// Generate runtime helpers (string conversion, concatenation, etc.)
 	// For ELF, this is done in writeELF() after second lambda pass
-	// For PE, we do it here since PE doesn't have a second pass
-	if fc.eb.target.IsPE() {
-		if VerboseMode {
-			fmt.Fprintf(os.Stderr, "DEBUG: Generating runtime helpers for PE\n")
-		}
-		fc.generateRuntimeHelpers()
-	}
+	// For PE, runtime helpers are now generated BEFORE cleanup code (see line ~953)
+	// so that arena function labels exist when cleanup code calls them
 
 	// Write executable in appropriate format based on target OS
 	if VerboseMode {
