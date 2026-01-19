@@ -132,6 +132,7 @@ type C67Compiler struct {
 	globalVarsMutable map[string]bool    // Global variable name -> is mutable
 	dataSection       []byte             // .data section contents
 	forwardFunctions  map[string]bool    // Functions that can be forward-referenced (defined in program)
+	collectingSymbols bool               // True during first pass (symbol collection), false during code generation
 
 	// Feature tracking for minimal runtime inclusion
 	usesStringConcat bool // Track if string concatenation is used
@@ -939,6 +940,7 @@ func (fc *C67Compiler) compileInternal(program *Program, outputPath string, deps
 
 	// Two-pass compilation: First pass collects all variable declarations
 	// so that function/constant order doesn't matter
+	fc.collectingSymbols = true
 	for i, stmt := range program.Statements {
 		if VerboseMode && i < 10 {
 			if assign, ok := stmt.(*AssignStmt); ok {
@@ -950,6 +952,7 @@ func (fc *C67Compiler) compileInternal(program *Program, outputPath string, deps
 			return err
 		}
 	}
+	fc.collectingSymbols = false
 
 	// Define global variables in .data section (after collecting symbols)
 	for varName := range fc.globalVars {
@@ -1255,7 +1258,8 @@ func (fc *C67Compiler) collectSymbols(stmt Statement) error {
 
 			// Track module-level variables (defined outside any lambda) - allocate in .data
 			// BUT: lambdas/functions are compiled to code, not stored as data
-			if fc.currentLambda == nil && !isLambda {
+			// IMPORTANT: Only create globals during symbol collection, not during compilation
+			if fc.collectingSymbols && fc.currentLambda == nil && !isLambda {
 				fc.moduleLevelVars[s.Name] = true
 				// Allocate in .data section
 				dataOffset := len(fc.dataSection)
@@ -1363,7 +1367,8 @@ func (fc *C67Compiler) collectSymbols(stmt Statement) error {
 
 				// Track module-level variables (defined outside any lambda) - allocate in .data
 				// BUT: lambdas/functions are compiled to code, not stored as data
-				if fc.currentLambda == nil && !isLambda {
+				// IMPORTANT: Only create globals during symbol collection, not during compilation
+				if fc.collectingSymbols && fc.currentLambda == nil && !isLambda {
 					fc.moduleLevelVars[s.Name] = true
 					// Allocate in .data section
 					dataOffset := len(fc.dataSection)

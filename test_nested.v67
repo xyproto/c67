@@ -1,0 +1,6 @@
+outer = (x) -> {
+    inner = (y) -> x + y
+    inner(10)
+}
+
+main = { println(outer(5)) }
