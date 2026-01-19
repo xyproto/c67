@@ -246,9 +246,19 @@ func (eb *ExecutableBuilder) TextWriter() Writer {
 
 // PatchPCRelocations patches all PC-relative address loads with actual offsets
 func (eb *ExecutableBuilder) PatchPCRelocations(textAddr, rodataAddr uint64, rodataSize int) {
-	if VerboseMode {
-		fmt.Fprintf(os.Stderr, "DEBUG PatchPCRelocations called: %d relocations, textAddr=0x%x\n", len(eb.pcRelocations), textAddr)
+	fmt.Fprintf(os.Stderr, "DEBUG PatchPCRelocations called: %d relocations, textAddr=0x%x\n", len(eb.pcRelocations), textAddr)
+	
+	if VerboseMode || len(eb.pcRelocations) > 0 {
+		fmt.Fprintf(os.Stderr, "DEBUG: Relocations to patch:\n")
+		for i, reloc := range eb.pcRelocations {
+			fmt.Fprintf(os.Stderr, "  [%d] offset=0x%X symbol=%s\n", i, reloc.offset, reloc.symbolName)
+			if i >= 10 {
+				fmt.Fprintf(os.Stderr, "  ... (%d more)\n", len(eb.pcRelocations)-i-1)
+				break
+			}
+		}
 	}
+	
 	textBytes := eb.text.Bytes()
 
 	for _, reloc := range eb.pcRelocations {

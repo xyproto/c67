@@ -9362,6 +9362,9 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 
 	// Generate arena functions only if arenas are actually used
 	if fc.usesArenas {
+		// Define error message string
+		fc.eb.Define("_vibe67_str_arena_alloc_error", "ERROR: Arena buffer allocation failed\n\x00")
+		
 		// Generate _vibe67_arena_create(capacity) -> arena_ptr
 		// Creates a new arena with the specified capacity
 		// Argument: rdi = capacity (int64)
