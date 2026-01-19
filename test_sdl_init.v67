@@ -1,0 +1,16 @@
+import sdl3 as sdl
+
+main = {
+    result := sdl.SDL_Init(0)
+    result {
+        0 => {
+            println("SDL_Init succeeded!")
+            sdl.SDL_Quit()
+            ret 0
+        }
+        ~> {
+            printf("SDL_Init failed with code: %d\n", result)
+            ret 1
+        }
+    }
+}

@@ -1056,11 +1056,20 @@ func (fc *C67Compiler) compileInternal(program *Program, outputPath string, deps
 
 	// Generate runtime helpers BEFORE cleanup code so labels exist when we patch calls
 	// For PE, this must happen before we call any arena functions in cleanup
+	var skipHelpersJump int
 	if fc.eb.target.IsPE() {
 		if VerboseMode {
 			fmt.Fprintf(os.Stderr, "DEBUG: Generating runtime helpers for PE (before cleanup)\n")
 		}
+		// Emit a JMP to skip over runtime helpers and go directly to cleanup
+		skipHelpersJump = fc.eb.text.Len()
+		fc.out.Emit([]byte{0xe9, 0x00, 0x00, 0x00, 0x00}) // jmp rel32 (will be patched)
+		
 		fc.generateRuntimeHelpers()
+		
+		// Patch the jump to skip over runtime helpers
+		skipHelpersTarget := fc.eb.text.Len()
+		fc.patchJumpImmediate(skipHelpersJump+1, int32(skipHelpersTarget-(skipHelpersJump+5)))
 	}
 
 	// Save exit code on stack before cleanup (rdi will be clobbered by cleanup calls)
@@ -10966,12 +10975,26 @@ func (fc *C67Compiler) cleanupAllArenas() {
 	fc.out.JumpConditional(JumpEqual, 0) // je skip_cleanup
 
 	// Load meta-arena length
-	fc.out.LeaSymbolToReg("rax", "_vibe67_arena_meta_len")
-	fc.out.MovMemToReg("rcx", "rax", 0) // rcx = number of arenas
+	// NOTE: Only clean up arena 0 (the global arena). Nested arenas created
+	// with `arena { }` blocks are NOT cleaned up to avoid double-free issues.
+	// They will leak at program exit but the OS will reclaim the memory.
+	fc.out.MovImmToReg("rcx", "1") // Only clean up arena 0
+	// fc.out.LeaSymbolToReg("rax", "_vibe67_arena_meta_len")
+	// fc.out.MovMemToReg("rcx", "rax", 0) // rcx = number of arenas
 
 	// Use callee-saved registers for loop (R14=count, R15=index) to survive Windows function calls
 	fc.out.MovRegToReg("r14", "rcx")     // r14 = arena count (callee-saved)
 	fc.out.XorRegWithReg("r15", "r15")   // r15 = index = 0 (callee-saved)
+
+	// For Windows, get process heap handle once and save it in r12 (callee-saved)
+	if fc.eb.target.OS() == OSWindows {
+		shadowSpace := fc.allocateShadowSpace()
+		fc.cFunctionLibs["GetProcessHeap"] = "kernel32"
+		fc.trackFunctionCall("GetProcessHeap")
+		fc.eb.GenerateCallInstruction("GetProcessHeap")
+		fc.deallocateShadowSpace(shadowSpace)
+		fc.out.MovRegToReg("r12", "rax") // Save heap handle in r12 for entire cleanup
+	}
 
 	cleanupLoopStart := fc.eb.text.Len()
 	fc.out.CmpRegToReg("r15", "r14")
@@ -10987,11 +11010,16 @@ func (fc *C67Compiler) cleanupAllArenas() {
 
 	// Free arena buffer (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use free (x64 calling convention - first arg in rcx)
+		// Windows: use HeapFree (buffer was allocated with HeapAlloc)
+		// BOOL HeapFree(HANDLE hHeap, DWORD dwFlags, LPVOID lpMem)
+		// r12 already contains heap handle from earlier GetProcessHeap call
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovMemToReg("rcx", "r9", 0) // rcx = buffer_ptr (arena[0])
-		fc.trackFunctionCall("free")
-		fc.eb.GenerateCallInstruction("free")
+		fc.out.MovRegToReg("rcx", "r12") // hHeap
+		fc.out.MovImmToReg("rdx", "0")   // dwFlags = 0
+		fc.out.MovMemToReg("r8", "r9", 0) // lpMem = buffer_ptr (arena[0])
+		fc.cFunctionLibs["HeapFree"] = "kernel32"
+		fc.trackFunctionCall("HeapFree")
+		fc.eb.GenerateCallInstruction("HeapFree")
 		fc.deallocateShadowSpace(shadowSpace)
 	} else {
 		// Linux: use munmap syscall
@@ -11003,11 +11031,13 @@ func (fc *C67Compiler) cleanupAllArenas() {
 
 	// Free arena struct (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use free
+		// Windows: use HeapFree (struct was allocated with HeapAlloc)
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovRegToReg("rcx", "r9") // rcx = arena struct pointer
-		fc.trackFunctionCall("free")
-		fc.eb.GenerateCallInstruction("free")
+		fc.out.MovRegToReg("rcx", "r12") // hHeap (still in r12 from previous HeapFree)
+		fc.out.MovImmToReg("rdx", "0")   // dwFlags = 0
+		fc.out.MovRegToReg("r8", "r9")   // lpMem = arena struct pointer
+		fc.trackFunctionCall("HeapFree")
+		fc.eb.GenerateCallInstruction("HeapFree")
 		fc.deallocateShadowSpace(shadowSpace)
 	} else {
 		// Linux: use munmap syscall
@@ -11028,11 +11058,13 @@ func (fc *C67Compiler) cleanupAllArenas() {
 
 	// Free the meta-arena array itself (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use free (the array was allocated with malloc)
+		// Windows: use HeapFree (the array was allocated with HeapAlloc)
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovRegToReg("rcx", "rbx") // rcx = meta-arena pointer
-		fc.trackFunctionCall("free")
-		fc.eb.GenerateCallInstruction("free")
+		fc.out.MovRegToReg("rcx", "r12") // hHeap (still in r12)
+		fc.out.MovImmToReg("rdx", "0")   // dwFlags = 0
+		fc.out.MovRegToReg("r8", "rbx")  // lpMem = meta-arena pointer
+		fc.trackFunctionCall("HeapFree")
+		fc.eb.GenerateCallInstruction("HeapFree")
 		fc.deallocateShadowSpace(shadowSpace)
 	} else {
 		// Linux: use munmap
@@ -17160,6 +17192,8 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			compilerError("alloc() called outside of arena context (currentArena=0)")
 		}
 
+		fc.usesArenas = true
+
 		// Compile size argument FIRST (before loading arena pointer)
 		fc.compileExpression(call.Args[0])
 		fc.out.Cvttsd2si("rdi", "xmm0") // size in rdi temporarily
@@ -17190,37 +17224,51 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		EmitPointerToFloat64(fc.out, "xmm0", "rax")
 
 	case "malloc":
-		// malloc(size) - Syntax sugar for alloc(size)
-		// Uses arena allocator, same as alloc
+		// malloc(size) - C malloc for heap allocation
 		if len(call.Args) != 1 {
 			compilerError("malloc() requires 1 argument (size)")
 		}
 
-		if fc.currentArena == 0 {
-			compilerError("malloc() called outside of arena context (currentArena=0)")
-		}
-
 		fc.compileExpression(call.Args[0])
 		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.PushReg("rdi")
-		arenaIndex := fc.currentArena - 1
-		offset := arenaIndex * 8
-		fc.out.LeaSymbolToReg("rdi", "_vibe67_arena_meta")
-		fc.out.MovMemToReg("rdi", "rdi", 0)
-		fc.out.MovMemToReg("rdi", "rdi", offset)
-		fc.out.PopReg("rsi")
-		fc.out.CallSymbol("_vibe67_arena_alloc")
+		
+		if fc.eb.target.OS() == OSWindows {
+			fc.out.MovRegToReg("rcx", "rdi")
+			shadowSpace := fc.allocateShadowSpace()
+			fc.cFunctionLibs["malloc"] = "msvcrt"
+			fc.trackFunctionCall("malloc")
+			fc.eb.GenerateCallInstruction("malloc")
+			fc.deallocateShadowSpace(shadowSpace)
+		} else {
+			fc.cFunctionLibs["malloc"] = "libc"
+			fc.trackFunctionCall("malloc")
+			fc.eb.GenerateCallInstruction("malloc")
+		}
+		
 		EmitPointerToFloat64(fc.out, "xmm0", "rax")
 
 	case "free":
-		// free(ptr) - No-op (arena cleanup happens automatically)
-		// Syntax sugar for compatibility
+		// free(ptr) - C free for heap deallocation
 		if len(call.Args) != 1 {
 			compilerError("free() requires 1 argument (ptr)")
 		}
-		// Evaluate argument (for side effects) then discard
+		
 		fc.compileExpression(call.Args[0])
-		// Return empty map (no-op)
+		fc.out.Cvttsd2si("rdi", "xmm0")
+		
+		if fc.eb.target.OS() == OSWindows {
+			fc.out.MovRegToReg("rcx", "rdi")
+			shadowSpace := fc.allocateShadowSpace()
+			fc.cFunctionLibs["free"] = "msvcrt"
+			fc.trackFunctionCall("free")
+			fc.eb.GenerateCallInstruction("free")
+			fc.deallocateShadowSpace(shadowSpace)
+		} else {
+			fc.cFunctionLibs["free"] = "libc"
+			fc.trackFunctionCall("free")
+			fc.eb.GenerateCallInstruction("free")
+		}
+		
 		fc.out.XorRegWithReg("rax", "rax")
 		EmitPointerToFloat64(fc.out, "xmm0", "rax")
 
@@ -19131,6 +19179,7 @@ func getUnknownFunctions(program *Program) []string {
 		"print": true, "println": true, // print/println are builtin optimizations, not dependencies
 		"eprint": true, "eprintln": true, "eprintf": true, // stderr printing with Result return
 		"exitln": true, "exitf": true, // stderr printing with exit(1)
+		"malloc": true, "free": true, // memory management built-ins
 		// Math functions (hardware instructions)
 		"sqrt": true, "sin": true, "cos": true, "tan": true,
 		"asin": true, "acos": true, "atan": true, "atan2": true,
@@ -19150,7 +19199,7 @@ func getUnknownFunctions(program *Program) []string {
 		// Debug
 		"printa": true,
 		// Memory allocation
-		"alloc": true, "free": true,
+		"alloc": true,
 		// Dynamic library loading
 		"dlopen": true, "dlsym": true, "dlclose": true,
 		// Memory operations

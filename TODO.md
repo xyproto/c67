@@ -1,21 +1,41 @@
 # TODO
 
-## Priority 0: CRITICAL - Windows PE Debugging
+## Priority 0: CRITICAL - Windows PE Arena Initialization Crash
 
-**CURRENT TASK:** Fix Windows PE executable crashes using bottom-up incremental testing.
+**CURRENT STATUS:** Significant progress made, but arena programs still crash.
 
-### Strategy
-1. Test minimal programs first (`main = { 42 }`)
-2. Add complexity incrementally (variables, functions, C FFI)
-3. Use sanity checks (-d flag shows DCE, validation detects bad addresses)
-4. Compare disassembly with working Linux ELF
-5. Test each level before moving to next
+### What Works ✅
+1. Minimal programs (`main = { 42 }`) - EXIT CODE 42 ✅
+2. Variable arithmetic (`x = 10; y = 32; x + y`) - EXIT CODE 42 ✅
+3. Function calls (`add(20, 22)`) - EXIT CODE 42 ✅
+4. PC relocations for arena metadata - NO MORE 0xDEADBEEF ✅
+5. Arena init function generation - CALL patched correctly ✅
+6. No compiler errors or warnings ✅
 
-### C FFI Design Decision
-- **SIMPLIFIED:** C FFI always uses raw pointers (no "!" suffix syntax)
-- Drop the "0=!" and "0=" operator ideas
-- Keep: `cptr`, `cstring` types + `as` casting at boundaries
-- C functions return/receive raw pointers directly
+### What Doesn't Work ❌
+- Programs with arenas crash with ACCESS_VIOLATION (0xC0000005)
+- Arena init function appears to be called but crashes during execution
+
+### Investigation
+**Root cause identified:** Arena metadata symbols (_vibe67_arena_meta, etc.) were not defined when `usesArenas` was checked too early.
+
+**Fix applied:**
+1. Moved symbol definitions to `generateRuntimeHelpers()` (after code gen)
+2. Created `generateArenaInitFunction()` - standalone function for init
+3. Patch 5 NOPs at offset with CALL to `_vibe67_init_arenas`
+4. All relocations now patched correctly
+
+**Still failing:**
+- Runtime crash in arena init function execution
+- Likely issues: shadow space, calling conventions, HeapAlloc usage
+- Need WinDbg debugging to see exact crash location
+
+### Next Steps
+1. Debug with WinDbg to find exact crash instruction
+2. Verify shadow space allocation in arena init function
+3. Check Windows calling convention compliance (rcx, rdx, r8, r9)
+4. Test simpler arena init without HeapAlloc (use malloc only)
+5. Compare working Linux mmap version with Windows HeapAlloc version
 
 ---
 

@@ -4161,6 +4161,46 @@ func (p *Parser) parsePrimary() Expression {
 		expr := p.parsePrimary()
 		return &UnaryExpr{Operator: "$", Operand: expr}
 
+	case TOKEN_MALLOC:
+		// malloc(size) - C malloc built-in
+		name := "malloc"
+		p.nextToken() // skip 'malloc'
+		if p.current.Type != TOKEN_LPAREN {
+			p.error("expected '(' after malloc")
+		}
+		p.nextToken() // skip '('
+		args := []Expression{}
+		if p.current.Type != TOKEN_RPAREN {
+			args = append(args, p.parseExpression())
+			for p.peek.Type == TOKEN_COMMA {
+				p.nextToken() // skip current
+				p.nextToken() // skip ','
+				args = append(args, p.parseExpression())
+			}
+			p.nextToken() // move to ')'
+		}
+		return &CallExpr{Function: name, Args: args}
+
+	case TOKEN_FREE:
+		// free(ptr) - C free built-in
+		name := "free"
+		p.nextToken() // skip 'free'
+		if p.current.Type != TOKEN_LPAREN {
+			p.error("expected '(' after free")
+		}
+		p.nextToken() // skip '('
+		args := []Expression{}
+		if p.current.Type != TOKEN_RPAREN {
+			args = append(args, p.parseExpression())
+			for p.peek.Type == TOKEN_COMMA {
+				p.nextToken() // skip current
+				p.nextToken() // skip ','
+				args = append(args, p.parseExpression())
+			}
+			p.nextToken() // move to ')'
+		}
+		return &CallExpr{Function: name, Args: args}
+
 	case TOKEN_FSTRING:
 		return p.parseFString()
 

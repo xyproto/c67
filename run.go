@@ -102,13 +102,13 @@ func compileAndRun(t *testing.T, code string) string {
 		if exitErr, ok := err.(*exec.ExitError); ok {
 			// Non-zero exit but program ran successfully - return output
 			_ = exitErr
-			return string(runOutput)
+			return strings.ReplaceAll(string(runOutput), "\r\n", "\n")
 		}
 		// Actual execution error (program didn't run)
 		t.Fatalf("Execution failed: %v\nOutput: %s", err, runOutput)
 	}
 
-	return string(runOutput)
+	return strings.ReplaceAll(string(runOutput), "\r\n", "\n")
 }
 
 // compileAndRunWindows is a helper function that compiles and runs Vibe67 code for Windows
