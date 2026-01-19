@@ -679,8 +679,10 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
 
 	// Arenas will be enabled on-demand when needed (string concat, list operations, etc.)
-	// Always enabled to ensure compatibility
-	fc.usesArenas = true
+	// TEMP: Disabled on Windows until HeapAlloc is debugged
+	if fc.eb.target.OS() != OSWindows {
+		fc.usesArenas = true
+	}
 
 	// Check if main() is called at top level (to decide whether to auto-call main)
 	fc.mainCalledAtTopLevel = fc.detectMainCallInTopLevel(program.Statements)
@@ -10376,11 +10378,24 @@ func (fc *C67Compiler) initializeMetaArenaAndGlobalArena() {
 
 	// Allocate meta-arena array (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use malloc (x64 calling convention - first arg in rcx)
+		// Windows: use HeapAlloc from kernel32 (doesn't need CRT initialization)
+		// HANDLE GetProcessHeap() - returns process heap handle
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovImmToReg("rcx", fmt.Sprintf("%d", 8*initialCapacity))
-		fc.trackFunctionCall("malloc")
-		fc.eb.GenerateCallInstruction("malloc")
+		fc.cFunctionLibs["GetProcessHeap"] = "kernel32"
+		fc.trackFunctionCall("GetProcessHeap")
+		fc.eb.GenerateCallInstruction("GetProcessHeap")
+		fc.deallocateShadowSpace(shadowSpace)
+		// rax now contains heap handle
+		fc.out.MovRegToReg("r12", "rax") // Save heap handle in r12
+		
+		// LPVOID HeapAlloc(HANDLE hHeap, DWORD dwFlags, SIZE_T dwBytes)
+		shadowSpace = fc.allocateShadowSpace()
+		fc.out.MovRegToReg("rcx", "r12") // hHeap
+		fc.out.MovImmToReg("rdx", "0") // dwFlags = 0
+		fc.out.MovImmToReg("r8", fmt.Sprintf("%d", 8*initialCapacity)) // dwBytes
+		fc.cFunctionLibs["HeapAlloc"] = "kernel32"
+		fc.trackFunctionCall("HeapAlloc")
+		fc.eb.GenerateCallInstruction("HeapAlloc")
 		fc.deallocateShadowSpace(shadowSpace)
 	} else {
 		// Linux: use mmap syscall
@@ -10408,11 +10423,14 @@ func (fc *C67Compiler) initializeMetaArenaAndGlobalArena() {
 
 	// Allocate arena buffer (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use malloc
+		// Windows: use HeapAlloc (r12 still has heap handle)
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovImmToReg("rcx", "1048576") // 1MB
-		fc.trackFunctionCall("malloc")
-		fc.eb.GenerateCallInstruction("malloc")
+		fc.out.MovRegToReg("rcx", "r12") // hHeap
+		fc.out.MovImmToReg("rdx", "0") // dwFlags = 0
+		fc.out.MovImmToReg("r8", "1048576") // dwBytes = 1MB
+		fc.cFunctionLibs["HeapAlloc"] = "kernel32"
+		fc.trackFunctionCall("HeapAlloc")
+		fc.eb.GenerateCallInstruction("HeapAlloc")
 		fc.deallocateShadowSpace(shadowSpace)
 	} else {
 		// Linux: use mmap
