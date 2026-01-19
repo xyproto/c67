@@ -29,6 +29,11 @@ func (fc *C67Compiler) validateGeneratedCode() []string {
 		"fflush": true, "ExitProcess": true, "GetProcessHeap": true, "HeapAlloc": true,
 	}
 	
+	// Built-in/intrinsic functions that get compiled into other code
+	builtinFunctions := map[string]bool{
+		"println": true, "print": true, "len": true, "alloc": true, "main": true,
+	}
+	
 	for funcName := range fc.usedFunctions {
 		// Skip internal vibe67 runtime functions - they'll be generated
 		if strings.HasPrefix(funcName, "_vibe67") || strings.HasPrefix(funcName, "vibe67_") {
@@ -47,6 +52,11 @@ func (fc *C67Compiler) validateGeneratedCode() []string {
 		
 		// Skip common C functions
 		if commonCFunctions[funcName] {
+			continue
+		}
+		
+		// Skip built-in/intrinsic functions
+		if builtinFunctions[funcName] {
 			continue
 		}
 		

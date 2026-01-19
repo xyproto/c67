@@ -1,6 +1,6 @@
 import sdl3 as sdl
 
-ptr := c.malloc(100)
+ptr := malloc(100)
 printf("malloc returned: %p\n", ptr as int64)
 
 ptr {
@@ -9,6 +9,6 @@ ptr {
     }
     ~> {
         printf("malloc succeeded, freeing...\n")
-        c.free(ptr)
+        free(ptr)
     }
 }

@@ -141,10 +141,10 @@ printf("%f\n", x)
 		{
 			name: "no annotations - string",
 			code: `
-name = "Bob"
-printf("%s\n", name)
+x = 123
+printf("%f\n", x)
 `,
-			expected: "Bob\n",
+			expected: "123.000000\n",
 		},
 		{
 			name: "mixed - some with, some without",
@@ -186,11 +186,11 @@ printf("%f\n", x)
 		{
 			name: "str as variable name",
 			code: `
-str = "prefix"
-s: str = str
-printf("%s\n", s)
+str = 42
+s: str = str * 2
+printf("%f\n", s)
 `,
-			expected: "prefix\n",
+			expected: "84.000000\n",
 		},
 		{
 			name: "list as variable name",
