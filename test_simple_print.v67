@@ -1,4 +1,0 @@
-main = {
-    println("Start")
-    ret 0
-}

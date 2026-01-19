@@ -1,6 +1,0 @@
-main = {
-    arena {
-        x = alloc(64)
-    }
-    42
-}

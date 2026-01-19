@@ -1,7 +1,0 @@
-main = {
-    println("Before alloc")
-    x := alloc(100)
-    println("After alloc")
-    printf("Pointer: %p\n", x as cptr)
-    ret 0
-}

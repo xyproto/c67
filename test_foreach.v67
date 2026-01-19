@@ -1,6 +1,0 @@
-fun main = {
-    foreach i in 0..<5 {
-        println(i)
-    }
-    42
-}

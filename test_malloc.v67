@@ -1,5 +1,0 @@
-main = {
-    ptr := malloc(64)
-    free(ptr)
-    42
-}

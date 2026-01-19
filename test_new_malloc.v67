@@ -1,4 +1,0 @@
-ptr := malloc(64)
-println("Allocated")
-free(ptr)
-println("Freed")
