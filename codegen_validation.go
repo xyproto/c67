@@ -22,6 +22,13 @@ func (fc *C67Compiler) validateGeneratedCode() []string {
 		patternLambdaSet[plambda.Name] = true
 	}
 	
+	// List of common C runtime functions that are always available
+	commonCFunctions := map[string]bool{
+		"printf": true, "exit": true, "malloc": true, "free": true, "realloc": true,
+		"getenv": true, "strlen": true, "memcpy": true, "memset": true, "pow": true,
+		"fflush": true, "ExitProcess": true, "GetProcessHeap": true, "HeapAlloc": true,
+	}
+	
 	for funcName := range fc.usedFunctions {
 		// Skip internal vibe67 runtime functions - they'll be generated
 		if strings.HasPrefix(funcName, "_vibe67") || strings.HasPrefix(funcName, "vibe67_") {
@@ -35,6 +42,11 @@ func (fc *C67Compiler) validateGeneratedCode() []string {
 		
 		// Skip forward-declared functions
 		if fc.forwardFunctions != nil && fc.forwardFunctions[funcName] {
+			continue
+		}
+		
+		// Skip common C functions
+		if commonCFunctions[funcName] {
 			continue
 		}
 		
