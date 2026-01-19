@@ -679,10 +679,8 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	fc.scopedMoved = []map[string]bool{make(map[string]bool)}
 
 	// Arenas will be enabled on-demand when needed (string concat, list operations, etc.)
-	// TEMP: Disabled on Windows until HeapAlloc is debugged
-	if fc.eb.target.OS() != OSWindows {
-		fc.usesArenas = true
-	}
+	// Always enabled to ensure compatibility
+	fc.usesArenas = true
 
 	// Check if main() is called at top level (to decide whether to auto-call main)
 	fc.mainCalledAtTopLevel = fc.detectMainCallInTopLevel(program.Statements)
@@ -868,7 +866,12 @@ func (fc *C67Compiler) Compile(program *Program, outputPath string) error {
 	// (e.g., for string concat, list operations, etc.)
 	// IMPORTANT: This must come AFTER stack frame setup so malloc calls work correctly on Windows
 	if fc.usesArenas {
+		if VerboseMode || fc.eb.target.OS() == OSWindows {
+			fmt.Fprintf(os.Stderr, "DEBUG: Initializing arenas (usesArenas=%v, OS=%s)\n", fc.usesArenas, fc.eb.target.OS())
+		}
 		fc.initializeMetaArenaAndGlobalArena()
+	} else if fc.eb.target.OS() == OSWindows {
+		fmt.Fprintf(os.Stderr, "DEBUG: Skipping arena init on Windows (usesArenas=%v)\n", fc.usesArenas)
 	}
 
 	fc.pushDeferScope()

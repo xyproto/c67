@@ -203,6 +203,9 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 
 		// Detect bad addresses (unpatched relocations)
 		fc.detectBadAddresses(elfBytes)
+		
+		// Validate generated code
+		fc.printCodeValidation()
 
 		if err := os.WriteFile(outputPath, elfBytes, 0755); err != nil {
 			return fmt.Errorf("failed to write executable: %v", err)
@@ -739,6 +742,9 @@ func (fc *C67Compiler) writeELF(program *Program, outputPath string) error {
 			}
 		}
 	}
+	
+	// Validate generated code before writing
+	fc.printCodeValidation()
 
 	if err := os.WriteFile(outputPath, elfBytes, 0o755); err != nil {
 		return err

@@ -84,6 +84,9 @@ func (fc *C67Compiler) writePE(program *Program, outputPath string) error {
 		return fmt.Errorf("failed to write PE file: %v", err)
 	}
 
+	// Validate generated code
+	fc.printCodeValidation()
+
 	if VerboseMode {
 		fmt.Fprintf(os.Stderr, "PE executable written to %s\n", outputPath)
 	}
