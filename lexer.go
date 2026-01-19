@@ -76,8 +76,14 @@ const (
 	TOKEN_ERR_QUESTION    // err? (check if expression is error)
 	TOKEN_VAL_QUESTION    // val? (check if expression has value)
 	// TOKEN_ME and TOKEN_CME removed - recursive calls now use mandatory max
-	TOKEN_RET        // ret keyword (return value from function/lambda)
-	TOKEN_ERR        // err keyword (return error from function/lambda)
+	TOKEN_RET      // ret keyword (return value from function/lambda)
+	TOKEN_ERR      // err keyword (return error from function/lambda)
+	TOKEN_FUN      // fun keyword (optional function definition marker)
+	TOKEN_BREAK    // break keyword (alias for ret @)
+	TOKEN_CONTINUE // continue keyword (alias for ret @ [])
+	TOKEN_FOREACH  // foreach keyword (alias for @ ... in)
+	TOKEN_MALLOC   // malloc keyword (arena allocator sugar)
+	TOKEN_FREE     // free keyword (no-op, arena cleanup)
 	TOKEN_AT_FIRST   // @first (first iteration)
 	TOKEN_AT_LAST    // @last (last iteration)
 	TOKEN_AT_COUNTER // @counter (iteration counter)
@@ -460,6 +466,18 @@ func (l *Lexer) NextToken() Token {
 				return Token{Type: TOKEN_ERR_QUESTION, Value: "err?", Line: l.line, Column: tokenColumn}
 			}
 			return Token{Type: TOKEN_ERR, Value: value, Line: l.line, Column: tokenColumn}
+		case "fun":
+			return Token{Type: TOKEN_FUN, Value: value, Line: l.line, Column: tokenColumn}
+		case "break":
+			return Token{Type: TOKEN_BREAK, Value: value, Line: l.line, Column: tokenColumn}
+		case "continue":
+			return Token{Type: TOKEN_CONTINUE, Value: value, Line: l.line, Column: tokenColumn}
+		case "foreach":
+			return Token{Type: TOKEN_FOREACH, Value: value, Line: l.line, Column: tokenColumn}
+		case "malloc":
+			return Token{Type: TOKEN_MALLOC, Value: value, Line: l.line, Column: tokenColumn}
+		case "free":
+			return Token{Type: TOKEN_FREE, Value: value, Line: l.line, Column: tokenColumn}
 		case "val":
 			// Check for val?
 			if l.pos < len(l.input) && l.input[l.pos] == '?' {

@@ -935,6 +935,28 @@ func (p *Parser) parseStructLiteral(structName string) *StructLiteralExpr {
 
 // Confidence that this function is working: 100%
 func (p *Parser) parseStatement() Statement {
+	// Check for fun keyword (optional function definition marker)
+	if p.current.Type == TOKEN_FUN {
+		p.nextToken() // skip 'fun'
+		// Now expect identifier and assignment
+		return p.parseAssignment()
+	}
+
+	// Check for break keyword (alias for ret @)
+	if p.current.Type == TOKEN_BREAK {
+		return p.parseBreakStatement()
+	}
+
+	// Check for continue keyword (alias for continue)
+	if p.current.Type == TOKEN_CONTINUE {
+		return p.parseContinueStatement()
+	}
+
+	// Check for foreach keyword (alias for @ ... in)
+	if p.current.Type == TOKEN_FOREACH {
+		return p.parseForeachStatement()
+	}
+
 	// Check for use keyword (imports)
 	if p.current.Type == TOKEN_USE {
 		p.nextToken() // skip 'use'
@@ -3061,6 +3083,144 @@ func (p *Parser) parseJumpStatement() Statement {
 	// label=-1 means exit current loop
 	// label>0 means exit loop N
 	return &JumpStmt{IsBreak: true, Label: label, Value: value}
+}
+
+func (p *Parser) parseBreakStatement() Statement {
+	p.nextToken() // skip 'break'
+
+	label := -1 // -1 means current loop
+
+	// Check for optional @N label
+	if p.current.Type == TOKEN_AT {
+		p.nextToken() // skip '@'
+		if p.current.Type == TOKEN_NUMBER {
+			labelNum, err := strconv.ParseFloat(p.current.Value, 64)
+			if err != nil {
+				p.error("invalid loop label number")
+			}
+			label = int(labelNum)
+			if label < 1 {
+				p.error("loop label must be >= 1 (use @1, @2, @3, etc.)")
+			}
+			p.nextToken() // skip number
+		}
+	}
+
+	// break is translated to: ret @ (exit loop without value)
+	return &JumpStmt{IsBreak: true, Label: label, Value: nil}
+}
+
+func (p *Parser) parseContinueStatement() Statement {
+	p.nextToken() // skip 'continue'
+
+	label := -1 // -1 means current loop
+
+	// Check for optional @N label
+	if p.current.Type == TOKEN_AT {
+		p.nextToken() // skip '@'
+		if p.current.Type == TOKEN_NUMBER {
+			labelNum, err := strconv.ParseFloat(p.current.Value, 64)
+			if err != nil {
+				p.error("invalid loop label number")
+			}
+			label = int(labelNum)
+			if label < 1 {
+				p.error("loop label must be >= 1 (use @1, @2, @3, etc.)")
+			}
+			p.nextToken() // skip number
+		}
+	}
+
+	// continue is translated to: ret @ [] (exit loop with empty value = continue)
+	return &JumpStmt{IsBreak: true, Label: label, Value: &ListExpr{Elements: []Expression{}}}
+}
+
+func (p *Parser) parseForeachStatement() Statement {
+	p.nextToken() // skip 'foreach'
+	
+	// foreach is just syntax sugar for @ ... in
+	// Parse as: @ ident in expr block
+	if p.current.Type != TOKEN_IDENT {
+		p.error("expected identifier after 'foreach'")
+		return nil
+	}
+
+	iterator := p.current.Value
+	p.nextToken() // skip identifier
+
+	if p.current.Type != TOKEN_IN {
+		p.error("expected 'in' after foreach iterator")
+		return nil
+	}
+	p.nextToken() // skip 'in'
+
+	iterable := p.parseExpression()
+
+	// Check for max clause (check peek not current!)
+	var maxIterations int64 = math.MaxInt64
+	needsMaxCheck := false
+	if p.peek.Type == TOKEN_MAX {
+		p.nextToken() // move to 'max'
+		p.nextToken() // skip 'max'
+		if p.current.Type == TOKEN_NUMBER {
+			maxInt, err := strconv.ParseInt(p.current.Value, 10, 64)
+			if err != nil || maxInt < 1 {
+				p.error("max iterations must be a positive integer")
+			}
+			maxIterations = maxInt
+			needsMaxCheck = true
+			p.nextToken() // skip number
+		} else if p.current.Type == TOKEN_INF {
+			maxIterations = math.MaxInt64
+			needsMaxCheck = true
+			p.nextToken() // skip 'inf'
+		} else {
+			p.error("expected number or 'inf' after 'max'")
+		}
+	}
+
+	// Skip newlines before '{'
+	for p.peek.Type == TOKEN_NEWLINE {
+		p.nextToken()
+	}
+
+	if p.peek.Type != TOKEN_LBRACE {
+		p.error("expected '{' after foreach expression")
+		return nil
+	}
+	p.nextToken() // move to '{'
+
+	// Track loop depth for nested loops
+	label := p.loopDepth + 1
+	oldDepth := p.loopDepth
+	p.loopDepth = label
+	defer func() { p.loopDepth = oldDepth }()
+
+	// Parse loop body
+	var body []Statement
+	for p.peek.Type != TOKEN_RBRACE && p.peek.Type != TOKEN_EOF {
+		p.nextToken()
+		if p.current.Type == TOKEN_NEWLINE {
+			continue
+		}
+		stmt := p.parseStatement()
+		if stmt != nil {
+			body = append(body, stmt)
+		}
+	}
+	
+	// Consume closing brace
+	if p.peek.Type == TOKEN_RBRACE {
+		p.nextToken() // move to '}'
+	}
+
+	return &LoopStmt{
+		Iterator:      iterator,
+		Iterable:      iterable,
+		MaxIterations: maxIterations,
+		NeedsMaxCheck: needsMaxCheck,
+		Body:          body,
+	}
 }
 
 // parsePattern parses a single pattern (literal, variable, or wildcard)

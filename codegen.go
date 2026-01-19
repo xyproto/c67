@@ -16753,6 +16753,41 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		// Result in rax, move raw bits to xmm0 (same as map literals)
 		EmitPointerToFloat64(fc.out, "xmm0", "rax")
 
+	case "malloc":
+		// malloc(size) - Syntax sugar for alloc(size)
+		// Uses arena allocator, same as alloc
+		if len(call.Args) != 1 {
+			compilerError("malloc() requires 1 argument (size)")
+		}
+
+		if fc.currentArena == 0 {
+			compilerError("malloc() called outside of arena context (currentArena=0)")
+		}
+
+		fc.compileExpression(call.Args[0])
+		fc.out.Cvttsd2si("rdi", "xmm0")
+		fc.out.PushReg("rdi")
+		arenaIndex := fc.currentArena - 1
+		offset := arenaIndex * 8
+		fc.out.LeaSymbolToReg("rdi", "_vibe67_arena_meta")
+		fc.out.MovMemToReg("rdi", "rdi", 0)
+		fc.out.MovMemToReg("rdi", "rdi", offset)
+		fc.out.PopReg("rsi")
+		fc.out.CallSymbol("_vibe67_arena_alloc")
+		EmitPointerToFloat64(fc.out, "xmm0", "rax")
+
+	case "free":
+		// free(ptr) - No-op (arena cleanup happens automatically)
+		// Syntax sugar for compatibility
+		if len(call.Args) != 1 {
+			compilerError("free() requires 1 argument (ptr)")
+		}
+		// Evaluate argument (for side effects) then discard
+		fc.compileExpression(call.Args[0])
+		// Return empty map (no-op)
+		fc.out.XorRegWithReg("rax", "rax")
+		EmitPointerToFloat64(fc.out, "xmm0", "rax")
+
 	case "dlopen":
 		// dlopen(path, flags) - Open a dynamic library
 		// path: string (C67 string), flags: number (RTLD_LAZY=1, RTLD_NOW=2)
@@ -17469,18 +17504,6 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 
 		// Return the stored value
 		fc.out.Cvtsi2sd("xmm0", "rax")
-
-	case "malloc":
-		// REMOVED: malloc() is not a builtin function.
-		// Use arena {} blocks with allocate() for automatic memory management,
-		// or use c.malloc() via C FFI if you need manual control.
-		compilerError("malloc() is not a builtin function. Use arena {} with allocate(), or c.malloc() via C FFI")
-
-	case "free":
-		// REMOVED: free() is not a builtin function.
-		// Use arena {} blocks for automatic memory management,
-		// or use c.free() via C FFI if you need manual control.
-		compilerError("free() is not a builtin function. Use arena {} blocks, or c.free() via C FFI")
 
 	case "realloc":
 		// REMOVED: realloc() is not a builtin function.
