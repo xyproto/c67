@@ -3946,11 +3946,17 @@ func (p *Parser) parsePostfix() Expression {
 			p.nextToken() // skip current expr
 			p.nextToken() // skip '.'
 
-			if p.current.Type != TOKEN_IDENT {
+			// Allow keywords like 'malloc' and 'free' as field names for C FFI (c.malloc, c.free)
+			var fieldName string
+			if p.current.Type == TOKEN_IDENT {
+				fieldName = p.current.Value
+			} else if p.current.Type == TOKEN_MALLOC {
+				fieldName = "malloc"
+			} else if p.current.Type == TOKEN_FREE {
+				fieldName = "free"
+			} else {
 				p.error("expected field name after '.'")
 			}
-
-			fieldName := p.current.Value
 
 			// Check if this is a namespaced function call or constant: namespace.func() or namespace.CONSTANT
 			// This requires expr to be an IdentExpr

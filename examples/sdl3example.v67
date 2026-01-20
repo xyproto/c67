@@ -42,42 +42,42 @@ printf("Starting main loop...\n")
 running := 1
 loop_count := 0
 
-arena {
-    event := (alloc(192) as SDL_Event)
-    printf("Allocated event at: %p\n", event)
+event := (c.malloc(192) as SDL_Event)
+printf("Allocated event at: %p\n", event)
 
-    @ running > 0 max inf {
-        printf("About to poll events...\n")
-        @ sdl.SDL_PollEvent(event) > 0 max 100 {
-            printf("Got event\n")
-            event.type {
-                256 => { 
-                    printf("Quit event received\n")
-                    running <- 0 
-                }
-                768 => {
-                    sc = peek32(event, 16)
-                    sc {
-                        41 => { 
-                            printf("Escape key pressed\n")
-                            running <- 0 
-                        }
+@ running > 0 max inf {
+    printf("About to poll events...\n")
+    @ sdl.SDL_PollEvent(event) > 0 max 100 {
+        printf("Got event\n")
+        event.type {
+            256 => { 
+                printf("Quit event received\n")
+                running <- 0 
+            }
+            768 => {
+                sc = peek32(event, 16)
+                sc {
+                    41 => { 
+                        printf("Escape key pressed\n")
+                        running <- 0 
                     }
                 }
             }
         }
+    }
 
-        sdl.SDL_RenderClear(renderer)
-        sdl.SDL_RenderTexture(renderer, tex, 0, 0)
-        sdl.SDL_RenderPresent(renderer)
-        sdl.SDL_Delay(16)
-        
-        loop_count++
-        loop_count {
-            | loop_count % 60 == 0 => { printf("Frame: %d\n", loop_count) }
-        }
+    sdl.SDL_RenderClear(renderer)
+    sdl.SDL_RenderTexture(renderer, tex, 0, 0)
+    sdl.SDL_RenderPresent(renderer)
+    sdl.SDL_Delay(16)
+    
+    loop_count++
+    
+    loop_count {
+        | loop_count % 60 == 0 => { printf("Frame: %d\n", loop_count) }
     }
 }
 
+c.free(event)
 printf("Done!\n")
 

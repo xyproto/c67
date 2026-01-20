@@ -1,0 +1,18 @@
+main = {
+    printf("Testing increment operator\n")
+    
+    count := 0
+    printf("count = %d\n", count)
+    
+    count++
+    printf("After count++: %d\n", count)
+    
+    count++
+    printf("After count++: %d\n", count)
+    
+    count--
+    printf("After count--: %d\n", count)
+    
+    printf("Done!\n")
+    0
+}

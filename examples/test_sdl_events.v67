@@ -1,0 +1,59 @@
+import sdl3 as sdl
+
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
+
+width = 620
+height = 387
+
+main = {
+    sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! {
+        exitf("SDL_Init failed\n")
+    }
+    defer sdl.SDL_Quit()
+
+    window = sdl.SDL_CreateWindow("Event Test", width, height, 0) or! {
+        exitf("Failed to create window\n")
+    }
+    defer sdl.SDL_DestroyWindow(window)
+
+    renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+        exitf("Failed to create renderer\n")
+    }
+    defer sdl.SDL_DestroyRenderer(renderer)
+
+    printf("Starting event loop test...\n")
+
+    running := 1
+    frame_count := 0
+    
+    printf("About to allocate event...\n")
+    event := (c.malloc(192) as SDL_Event)
+    printf("Allocated event with c.malloc at: %p\n", event)
+        
+        @ running > 0 max 300 {
+            @ sdl.SDL_PollEvent(event) > 0 max 100 {
+                printf("Got event type: %d\n", event.type)
+                event.type {
+                    256 => { 
+                        printf("Quit event\n")
+                        running <- 0 
+                    }
+                }
+            }
+            
+            sdl.SDL_RenderClear(renderer)
+            sdl.SDL_RenderPresent(renderer)
+            sdl.SDL_Delay(16)
+            
+            frame_count++
+            frame_count {
+                | frame_count % 60 == 0 => { printf("Frame: %d\n", frame_count) }
+            }
+        }
+    
+    c.free(event)
+    printf("Done! Total frames: %d\n", frame_count)
+}

@@ -2100,60 +2100,104 @@ func (fc *C67Compiler) compileStatement(stmt Statement) {
 				compilerError("postfix operator %s requires a variable operand", postfix.Operator)
 			}
 
-			// Get the variable's stack offset
-			offset, exists := fc.variables[identExpr.Name]
-			if !exists {
-				suggestions := findSimilarIdentifiers(identExpr.Name, fc.variables, 3)
-				if len(suggestions) > 0 {
-					compilerError("undefined variable '%s'. Did you mean: %s?", identExpr.Name, strings.Join(suggestions, ", "))
-				} else {
-					compilerError("undefined variable '%s'", identExpr.Name)
+			// Check if it's a global variable
+			if _, isGlobal := fc.globalVars[identExpr.Name]; isGlobal {
+				// Check if variable is mutable
+				if !fc.globalVarsMutable[identExpr.Name] {
+					compilerError("cannot modify immutable variable '%s'", identExpr.Name)
 				}
+
+				// Load global variable address into rax
+				fc.out.LeaSymbolToReg("rax", "_global_"+identExpr.Name)
+				// Load current value into xmm0
+				fc.out.MovMemToXmm("xmm0", "rax", 0)
+
+				// Create 1.0 constant
+				labelName := fmt.Sprintf("one_%d", fc.stringCounter)
+				fc.stringCounter++
+
+				one := 1.0
+				bits := uint64(0)
+				*(*float64)(unsafe.Pointer(&bits)) = one
+				var floatData []byte
+				for i := 0; i < 8; i++ {
+					floatData = append(floatData, byte((bits>>(i*8))&ByteMask))
+				}
+				fc.eb.Define(labelName, string(floatData))
+
+				// Load 1.0 into xmm1
+				fc.out.LeaSymbolToReg("rbx", labelName)
+				fc.out.MovMemToXmm("xmm1", "rbx", 0)
+
+				// Apply the operation
+				switch postfix.Operator {
+				case "++":
+					fc.out.AddsdXmm("xmm0", "xmm1") // xmm0 = xmm0 + 1.0
+				case "--":
+					fc.out.SubsdXmm("xmm0", "xmm1") // xmm0 = xmm0 - 1.0
+				default:
+					compilerError("unknown postfix operator '%s'", postfix.Operator)
+				}
+
+				// Store the modified value back to the global variable
+				fc.out.MovXmmToMem("xmm0", "rax", 0)
+			} else {
+				// Local variable handling
+				// Get the variable's stack offset
+				offset, exists := fc.variables[identExpr.Name]
+				if !exists {
+					suggestions := findSimilarIdentifiers(identExpr.Name, fc.variables, 3)
+					if len(suggestions) > 0 {
+						compilerError("undefined variable '%s'. Did you mean: %s?", identExpr.Name, strings.Join(suggestions, ", "))
+					} else {
+						compilerError("undefined variable '%s'", identExpr.Name)
+					}
+				}
+
+				// Check if variable is mutable
+				if !fc.mutableVars[identExpr.Name] {
+					compilerError("cannot modify immutable variable '%s'", identExpr.Name)
+				}
+
+				// Use r11 for parent variables, rbp for local
+				baseReg := "rbp"
+				if fc.parentVariables != nil && fc.parentVariables[identExpr.Name] {
+					baseReg = "r11"
+				}
+
+				// Load current value into xmm0
+				fc.out.MovMemToXmm("xmm0", baseReg, -offset)
+
+				// Create 1.0 constant
+				labelName := fmt.Sprintf("one_%d", fc.stringCounter)
+				fc.stringCounter++
+
+				one := 1.0
+				bits := uint64(0)
+				*(*float64)(unsafe.Pointer(&bits)) = one
+				var floatData []byte
+				for i := 0; i < 8; i++ {
+					floatData = append(floatData, byte((bits>>(i*8))&ByteMask))
+				}
+				fc.eb.Define(labelName, string(floatData))
+
+				// Load 1.0 into xmm1
+				fc.out.LeaSymbolToReg("rax", labelName)
+				fc.out.MovMemToXmm("xmm1", "rax", 0)
+
+				// Apply the operation
+				switch postfix.Operator {
+				case "++":
+					fc.out.AddsdXmm("xmm0", "xmm1") // xmm0 = xmm0 + 1.0
+				case "--":
+					fc.out.SubsdXmm("xmm0", "xmm1") // xmm0 = xmm0 - 1.0
+				default:
+					compilerError("unknown postfix operator '%s'", postfix.Operator)
+				}
+
+				// Store the modified value back to the variable
+				fc.out.MovXmmToMem("xmm0", baseReg, -offset)
 			}
-
-			// Check if variable is mutable
-			if !fc.mutableVars[identExpr.Name] {
-				compilerError("cannot modify immutable variable '%s'", identExpr.Name)
-			}
-
-			// Use r11 for parent variables, rbp for local
-			baseReg := "rbp"
-			if fc.parentVariables != nil && fc.parentVariables[identExpr.Name] {
-				baseReg = "r11"
-			}
-
-			// Load current value into xmm0
-			fc.out.MovMemToXmm("xmm0", baseReg, -offset)
-
-			// Create 1.0 constant
-			labelName := fmt.Sprintf("one_%d", fc.stringCounter)
-			fc.stringCounter++
-
-			one := 1.0
-			bits := uint64(0)
-			*(*float64)(unsafe.Pointer(&bits)) = one
-			var floatData []byte
-			for i := 0; i < 8; i++ {
-				floatData = append(floatData, byte((bits>>(i*8))&ByteMask))
-			}
-			fc.eb.Define(labelName, string(floatData))
-
-			// Load 1.0 into xmm1
-			fc.out.LeaSymbolToReg("rax", labelName)
-			fc.out.MovMemToXmm("xmm1", "rax", 0)
-
-			// Apply the operation
-			switch postfix.Operator {
-			case "++":
-				fc.out.AddsdXmm("xmm0", "xmm1") // xmm0 = xmm0 + 1.0
-			case "--":
-				fc.out.SubsdXmm("xmm0", "xmm1") // xmm0 = xmm0 - 1.0
-			default:
-				compilerError("unknown postfix operator '%s'", postfix.Operator)
-			}
-
-			// Store the modified value back to the variable
-			fc.out.MovXmmToMem("xmm0", baseReg, -offset)
 		} else {
 			fc.compileExpression(s.Expr)
 		}
