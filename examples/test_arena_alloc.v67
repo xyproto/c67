@@ -1,0 +1,8 @@
+main = {
+    arena {
+        printf("Before alloc\n")
+        ptr = alloc(16)
+        printf("After alloc\n")
+    }
+    printf("After arena\n")
+}

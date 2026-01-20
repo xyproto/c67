@@ -1,0 +1,7 @@
+printf("Before arena\n")
+
+arena {
+    printf("Inside arena\n")
+}
+
+printf("After arena\n")

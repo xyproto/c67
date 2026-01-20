@@ -1,0 +1,16 @@
+cstruct TestStruct {
+    field1 as uint32,
+    field2 as uint64
+}
+
+printf("Test: alloc and cast\n")
+
+arena {
+    ptr := alloc(192)
+    printf("Allocated at: %p\n", ptr)
+    
+    event := (ptr as TestStruct)
+    printf("Cast to struct: %p\n", event)
+}
+
+printf("Done\n")

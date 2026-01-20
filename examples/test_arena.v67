@@ -1,0 +1,1 @@
+main = { arena { x = alloc(16); printf("Allocated: %p\n", x); x } }

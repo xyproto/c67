@@ -1,46 +1,35 @@
 # TODO
 
-## Priority 0: CRITICAL - Windows Issues PARTIALLY FIXED
+## Priority 0: CRITICAL - Windows Arena Issues
 
-**CURRENT STATUS:** Major loop bug fixed! Windows arenas still broken.
-
-### Recent Fixes ✅
-1. **FIXED: `max inf` loop bug** - Loops with `@ condition max inf` were exiting after 1 iteration
-   - Issue: `MaxIterations == math.MaxInt64` was being mov'd as `-1`, causing `cmp >= -1` to always be true
-   - Fix: Skip max iteration check entirely when `MaxIterations == math.MaxInt64`
-   - SDL3 example now loops properly!
-
-2. **FIXED: PE crash investigation** - Found multiple issues
-   - Bad address detection implemented
-   - IAT patching fixed
-   - Entry point calculation corrected
-
-### Remaining Issues
-1. **Windows Arena Allocator Broken** - Crashing with ACCESS_VIOLATION (0xC0000005)
-   - Changed from malloc to HeapAlloc/GetProcessHeap (kernel32.dll)
-   - Still crashes - needs deep debugging with WinDbg
-   - Linux arena works fine (uses mmap syscall)
-   - Affects: `arena { alloc(N) }` blocks
-   - **Workaround:** Use `c.malloc/c.free` instead of arena for now on Windows
-
-2. **Missing `_vibe67_arena_cleanup`** warning
-   - Warning appears but doesn't block compilation
-   - Need to implement cleanup function or adjust DCE guards
+**CURRENT STATUS:** Core PE compilation works, arenas broken on Windows.
 
 ### What Works ✅
 1. Minimal programs (`main = { 42 }`) - EXIT CODE 42 ✅
 2. Variable arithmetic (`x = 10; y = 32; x + y`) - EXIT CODE 42 ✅  
 3. Function calls (`add(20, 22)`) - EXIT CODE 42 ✅
-4. **Loops with `max inf`** - Now working! ✅
-5. **SDL3 rendering** - Window displays, loop runs ✅
-6. Compilation completes without errors ✅
-7. Tests pass on Linux ✅
+4. **Increment/decrement operators** (`x++`, `x--`) - Working! ✅
+5. **Loops with `max inf`** - Now working! ✅
+6. **Simple printf** - `printf("Hello\n")` works ✅
+7. Compilation completes without errors ✅
+8. Tests pass (`go test`) ✅
+
+### Broken ❌
+1. **Windows Arena Allocator** - Crashing with ACCESS_VIOLATION (0xC0000409 stack corruption)
+   - Uses HeapAlloc/GetProcessHeap (kernel32.dll)
+   - Linux arena works fine (uses mmap syscall)
+   - Affects: `arena { alloc(N) }` blocks
+   - **Workaround:** Use `c.malloc/c.free` instead of arena for now on Windows
+   - **SDL3 example crashes** because it uses arena blocks
 
 ### Next Steps (in order)
-1. Debug Windows HeapAlloc arena issue with WinDbg/objdump
-2. Implement `_vibe67_arena_cleanup` function
-3. Full SDL3 event handling testing (mouse, keyboard)
-4. Cross-platform validation (Linux, macOS)
+1. **Fix Windows arena allocator**
+   - Debug with objdump/ndisasm to see what code is generated
+   - Compare with working Linux mmap version
+   - Check calling conventions for HeapAlloc (Windows x64 ABI)
+   - Verify stack alignment (16-byte requirement for Windows x64)
+2. **Test SDL3 example fully** once arenas work
+3. **Cross-platform validation** (Linux, macOS)
 
 ---
 

@@ -1,0 +1,6 @@
+main = {
+    arena {
+        printf("Inside arena\n")
+    }
+    printf("After arena\n")
+}

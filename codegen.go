@@ -2226,8 +2226,15 @@ func (fc *C67Compiler) compileArenaStmt(stmt *ArenaStmt) {
 
 	// Ensure meta-arena has enough capacity
 	// Call _vibe67_arena_ensure_capacity(arenaIndex + 1)
-	fc.out.MovImmToReg("rdi", fmt.Sprintf("%d", fc.currentArena))
-	fc.out.CallSymbol("_vibe67_arena_ensure_capacity")
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovImmToReg("rcx", fmt.Sprintf("%d", fc.currentArena))
+		shadowSpace := fc.allocateShadowSpace()
+		fc.out.CallSymbol("_vibe67_arena_ensure_capacity")
+		fc.deallocateShadowSpace(shadowSpace)
+	} else {
+		fc.out.MovImmToReg("rdi", fmt.Sprintf("%d", fc.currentArena))
+		fc.out.CallSymbol("_vibe67_arena_ensure_capacity")
+	}
 
 	// Load arena pointer from meta-arena: _vibe67_arena_meta[arenaIndex]
 	// Each pointer is 8 bytes, so offset = arenaIndex * 8
@@ -2250,9 +2257,17 @@ func (fc *C67Compiler) compileArenaStmt(stmt *ArenaStmt) {
 
 	// Reset arena (resets offset to 0, keeps buffer allocated for reuse)
 	fc.out.LeaSymbolToReg("rbx", "_vibe67_arena_meta")
-	fc.out.MovMemToReg("rbx", "rbx", 0)      // rbx = meta-arena pointer
-	fc.out.MovMemToReg("rdi", "rbx", offset) // rdi = arena pointer from slot
-	fc.out.CallSymbol("_vibe67_arena_reset")
+	fc.out.MovMemToReg("rbx", "rbx", 0) // rbx = meta-arena pointer
+	
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovMemToReg("rcx", "rbx", offset) // rcx = arena pointer (Windows)
+		shadowSpace := fc.allocateShadowSpace()
+		fc.out.CallSymbol("_vibe67_arena_reset")
+		fc.deallocateShadowSpace(shadowSpace)
+	} else {
+		fc.out.MovMemToReg("rdi", "rbx", offset) // rdi = arena pointer (Linux)
+		fc.out.CallSymbol("_vibe67_arena_reset")
+	}
 }
 
 func (fc *C67Compiler) compileArenaExpr(expr *ArenaExpr) {
@@ -2304,8 +2319,16 @@ func (fc *C67Compiler) compileArenaExpr(expr *ArenaExpr) {
 	// Reset arena
 	fc.out.LeaSymbolToReg("rbx", "_vibe67_arena_meta")
 	fc.out.MovMemToReg("rbx", "rbx", 0)
-	fc.out.MovMemToReg("rdi", "rbx", offset)
-	fc.out.CallSymbol("_vibe67_arena_reset")
+	
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovMemToReg("rcx", "rbx", offset)
+		shadowSpace := fc.allocateShadowSpace()
+		fc.out.CallSymbol("_vibe67_arena_reset")
+		fc.deallocateShadowSpace(shadowSpace)
+	} else {
+		fc.out.MovMemToReg("rdi", "rbx", offset)
+		fc.out.CallSymbol("_vibe67_arena_reset")
+	}
 
 	// Result is already in xmm0 from the last statement
 }
@@ -9673,6 +9696,7 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PushReg("rbx")
 		fc.out.PushReg("r12")
 		fc.out.PushReg("r13") // r13 used on Windows to store heap handle
+		fc.out.PushReg("r14") // r14 for 16-byte stack alignment
 
 		// Save capacity argument (calling convention: rdi on Linux, rcx on Windows)
 		if fc.eb.target.OS() == OSWindows {
@@ -9757,6 +9781,7 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		// Return arena pointer in rax
 		fc.out.MovRegToReg("rax", "rbx")
 
+		fc.out.PopReg("r14") // Restore r14 (alignment)
 		fc.out.PopReg("r13") // Restore r13
 		fc.out.PopReg("r12")
 		fc.out.PopReg("rbx")
@@ -9803,8 +9828,14 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 		fc.out.PushReg("r13")
 		fc.out.PushReg("r14") // Extra push for 16-byte stack alignment (5 total pushes = 40 bytes)
 
-		fc.out.MovRegToReg("rbx", "rdi") // rbx = arena_ptr (preserve across calls)
-		fc.out.MovRegToReg("r12", "rsi") // r12 = size (preserve across calls)
+		// Handle calling convention differences
+		if fc.eb.target.OS() == OSWindows {
+			fc.out.MovRegToReg("rbx", "rcx") // rbx = arena_ptr (Windows: rcx)
+			fc.out.MovRegToReg("r12", "rdx") // r12 = size (Windows: rdx)
+		} else {
+			fc.out.MovRegToReg("rbx", "rdi") // rbx = arena_ptr (Linux: rdi)
+			fc.out.MovRegToReg("r12", "rsi") // r12 = size (Linux: rsi)
+		}
 
 		// Check if arena pointer is NULL
 		fc.out.TestRegReg("rbx", "rbx")
@@ -10045,14 +10076,18 @@ func (fc *C67Compiler) generateRuntimeHelpers() {
 
 		// Generate _vibe67_arena_reset(arena_ptr)
 		// Resets the arena offset to 0, effectively freeing all allocations
-		// Argument: rdi = arena_ptr
+		// Argument: rdi = arena_ptr (Linux), rcx = arena_ptr (Windows)
 		fc.eb.MarkLabel("_vibe67_arena_reset")
 
 		fc.out.PushReg("rbp")
 		fc.out.MovRegToReg("rbp", "rsp")
 
-		// Reset offset to 0
-		fc.out.MovImmToMem(0, "rdi", 16) // [arena_ptr+16] = 0
+		// Handle calling convention
+		if fc.eb.target.OS() == OSWindows {
+			fc.out.MovImmToMem(0, "rcx", 16) // [arena_ptr+16] = 0
+		} else {
+			fc.out.MovImmToMem(0, "rdi", 16) // [arena_ptr+16] = 0
+		}
 
 		fc.out.PopReg("rbp")
 		fc.out.Ret()
@@ -10859,6 +10894,7 @@ func (fc *C67Compiler) generateArenaInitFunction() {
 	fc.out.MovRegToReg("rbp", "rsp")
 	fc.out.PushReg("rbx")
 	fc.out.PushReg("r12")
+	fc.out.PushReg("r13") // For 16-byte alignment
 	
 	const initialCapacity = 4
 	
@@ -10981,6 +11017,7 @@ func (fc *C67Compiler) generateArenaInitFunction() {
 	fc.out.MovRegToMem("rcx", "rbx", 0)
 	
 	// Function epilogue
+	fc.out.PopReg("r13")
 	fc.out.PopReg("r12")
 	fc.out.PopReg("rbx")
 	fc.out.MovRegToReg("rsp", "rbp")
@@ -11240,8 +11277,12 @@ func (fc *C67Compiler) generateArenaEnsureCapacity() {
 	fc.out.PushReg("r14")
 	fc.out.PushReg("r15")
 
-	// r12 = required_depth
-	fc.out.MovRegToReg("r12", "rdi")
+	// r12 = required_depth (handle calling convention)
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovRegToReg("r12", "rcx") // Windows: rcx
+	} else {
+		fc.out.MovRegToReg("r12", "rdi") // Linux: rdi
+	}
 
 	// Load current capacity
 	fc.out.LeaSymbolToReg("rbx", "_vibe67_arena_meta_cap")
@@ -15381,8 +15422,16 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 			compilerError("arena_reset() requires exactly 1 argument (arena_ptr)")
 		}
 		fc.compileExpression(call.Args[0])
-		fc.out.Cvttsd2si("rdi", "xmm0")
-		fc.out.CallSymbol("_vibe67_arena_reset")
+		
+		if fc.eb.target.OS() == OSWindows {
+			fc.out.Cvttsd2si("rcx", "xmm0")
+			shadowSpace := fc.allocateShadowSpace()
+			fc.out.CallSymbol("_vibe67_arena_reset")
+			fc.deallocateShadowSpace(shadowSpace)
+		} else {
+			fc.out.Cvttsd2si("rdi", "xmm0")
+			fc.out.CallSymbol("_vibe67_arena_reset")
+		}
 		// No return value, set xmm0 to 0
 		fc.out.XorpdXmm("xmm0", "xmm0")
 
@@ -17254,16 +17303,29 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		// Load arena pointer from meta-arena: _vibe67_arena_meta[currentArena-1]
 		arenaIndex := fc.currentArena - 1 // Convert to 0-based index
 		offset := arenaIndex * 8
-		fc.out.LeaSymbolToReg("rdi", "_vibe67_arena_meta")
-		fc.out.MovMemToReg("rdi", "rdi", 0) // Load the meta-arena pointer
-
-		fc.out.MovMemToReg("rdi", "rdi", offset) // Load the arena pointer from slot
-
-		// Restore size to rsi
-		fc.out.PopReg("rsi") // size in rsi
+		
+		if fc.eb.target.OS() == OSWindows {
+			// Windows calling convention: rcx = arena_ptr, rdx = size
+			fc.out.LeaSymbolToReg("rcx", "_vibe67_arena_meta")
+			fc.out.MovMemToReg("rcx", "rcx", 0)      // Load the meta-arena pointer
+			fc.out.MovMemToReg("rcx", "rcx", offset) // Load the arena pointer from slot
+			fc.out.PopReg("rdx")                     // size in rdx
+		} else {
+			// Linux calling convention: rdi = arena_ptr, rsi = size
+			fc.out.LeaSymbolToReg("rdi", "_vibe67_arena_meta")
+			fc.out.MovMemToReg("rdi", "rdi", 0)      // Load the meta-arena pointer
+			fc.out.MovMemToReg("rdi", "rdi", offset) // Load the arena pointer from slot
+			fc.out.PopReg("rsi")                     // size in rsi
+		}
 
 		// Call arena_alloc (with auto-growing via realloc)
-		fc.out.CallSymbol("_vibe67_arena_alloc")
+		if fc.eb.target.OS() == OSWindows {
+			shadowSpace := fc.allocateShadowSpace()
+			fc.out.CallSymbol("_vibe67_arena_alloc")
+			fc.deallocateShadowSpace(shadowSpace)
+		} else {
+			fc.out.CallSymbol("_vibe67_arena_alloc")
+		}
 
 		// DEBUG: Force return a fixed value
 		if false {

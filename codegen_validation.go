@@ -72,7 +72,7 @@ func (fc *C67Compiler) validateGeneratedCode() []string {
 	
 	// Check 2: Verify arena functions if arenas are used
 	if fc.usesArenas {
-		arenaFuncs := []string{"_vibe67_arena_create", "_vibe67_arena_alloc", "_vibe67_arena_cleanup"}
+		arenaFuncs := []string{"_vibe67_init_arenas", "_vibe67_arena_alloc", "_vibe67_arena_reset", "_vibe67_arena_ensure_capacity"}
 		for _, funcName := range arenaFuncs {
 			// Check if the function is actually defined
 			if fc.eb.LabelOffset(funcName) < 0 {
