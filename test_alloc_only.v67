@@ -1,0 +1,3 @@
+printf("Before arena\n")
+x := alloc(8)
+printf("After alloc\n")

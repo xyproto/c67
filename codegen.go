@@ -10890,12 +10890,23 @@ func (fc *C67Compiler) initializeMetaArenaAndGlobalArena() {
 
 	// Allocate arena struct (platform-specific)
 	if fc.eb.target.OS() == OSWindows {
-		// Windows: use malloc for 32 bytes
+		// Windows: use HeapAlloc (r12 no longer has heap handle, need to get it again)
 		shadowSpace := fc.allocateShadowSpace()
-		fc.out.MovImmToReg("rcx", "32")
-		fc.trackFunctionCall("malloc")
-		fc.eb.GenerateCallInstruction("malloc")
+		fc.cFunctionLibs["GetProcessHeap"] = "kernel32"
+		fc.trackFunctionCall("GetProcessHeap")
+		fc.eb.GenerateCallInstruction("GetProcessHeap")
 		fc.deallocateShadowSpace(shadowSpace)
+		// rax now has heap handle
+		fc.out.PushReg("r12") // Save arena buffer
+		shadowSpace = fc.allocateShadowSpace()
+		fc.out.MovRegToReg("rcx", "rax") // hHeap
+		fc.out.MovImmToReg("rdx", "0") // dwFlags = 0
+		fc.out.MovImmToReg("r8", "32") // dwBytes
+		fc.cFunctionLibs["HeapAlloc"] = "kernel32"
+		fc.trackFunctionCall("HeapAlloc")
+		fc.eb.GenerateCallInstruction("HeapAlloc")
+		fc.deallocateShadowSpace(shadowSpace)
+		fc.out.PopReg("r12") // Restore arena buffer
 	} else {
 		// Linux: use mmap (round up to page size)
 		fc.out.MovImmToReg("rdi", "0")    // addr = NULL
@@ -10987,6 +10998,7 @@ func (fc *C67Compiler) generateArenaInitFunction() {
 		fc.out.MovRegToReg("rcx", "r12") // hHeap
 		fc.out.MovImmToReg("rdx", "0") // dwFlags = 0
 		fc.out.MovImmToReg("r8", "1048576") // dwBytes = 1MB
+		fc.cFunctionLibs["HeapAlloc"] = "kernel32"
 		fc.trackFunctionCall("HeapAlloc")
 		fc.eb.GenerateCallInstruction("HeapAlloc")
 		fc.deallocateShadowSpace(shadowSpace)
@@ -11032,6 +11044,7 @@ func (fc *C67Compiler) generateArenaInitFunction() {
 		fc.out.MovRegToReg("rcx", "r12") // hHeap
 		fc.out.MovImmToReg("rdx", "0") // dwFlags = 0
 		fc.out.MovImmToReg("r8", "32") // dwBytes
+		fc.cFunctionLibs["HeapAlloc"] = "kernel32"
 		fc.trackFunctionCall("HeapAlloc")
 		fc.eb.GenerateCallInstruction("HeapAlloc")
 		fc.deallocateShadowSpace(shadowSpace)

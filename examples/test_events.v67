@@ -1,0 +1,71 @@
+import sdl3 as sdl
+
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
+
+sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! {
+    exitf("SDL_Init failed\n")
+}
+
+window = sdl.SDL_CreateWindow("Test Events", 640, 480, 0) or! {
+    exitf("Failed to create window\n")
+}
+
+renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+    exitf("Failed to create renderer\n")
+}
+
+printf("Starting event test...\n")
+printf("Press ESC to quit or wait 5 seconds\n")
+
+event := (c.malloc(192) as SDL_Event)
+start_time := sdl.SDL_GetTicks()
+running := 1
+frame := 0
+
+@ running > 0 max inf {
+    current_time := sdl.SDL_GetTicks()
+    elapsed := current_time - start_time
+    
+    @ sdl.SDL_PollEvent(event) > 0 max 100 {
+        printf("Event type: %d\n", event.type)
+        event.type {
+            256 => { 
+                printf("QUIT event\n")
+                running <- 0
+            }
+            768 => {
+                printf("KEYDOWN event\n")
+                scancode := peek32(event, 16)
+                printf("  Scancode: %d\n", scancode)
+                scancode {
+                    41 => { 
+                        printf("ESC pressed\n")
+                        running <- 0
+                    }
+                }
+            }
+        }
+    }
+    
+    sdl.SDL_RenderClear(renderer)
+    sdl.SDL_RenderPresent(renderer)
+    sdl.SDL_Delay(16)
+    
+    frame++
+    
+    elapsed {
+        | elapsed > 5000 => {
+            printf("5 seconds elapsed, quitting\n")
+            running <- 0
+        }
+    }
+}
+
+c.free(event)
+sdl.SDL_DestroyRenderer(renderer)
+sdl.SDL_DestroyWindow(window)
+sdl.SDL_Quit()
+printf("Done!\n")

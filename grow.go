@@ -74,7 +74,11 @@ func (fc *C67Compiler) generateArenaInitLoop() {
 	// Create arena with 4096 bytes capacity
 	fc.out.PushReg("rdi") // Save registers across call
 	fc.out.PushReg("rsi")
-	fc.out.MovImmToReg("rdi", "4096")
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovImmToReg("rcx", "4096") // Windows: first arg in rcx
+	} else {
+		fc.out.MovImmToReg("rdi", "4096") // Linux: first arg in rdi
+	}
 	fc.trackFunctionCall("malloc") // Track for PLT
 	fc.out.CallSymbol("_vibe67_arena_create")
 	fc.out.PopReg("rsi")
@@ -140,7 +144,11 @@ func (fc *C67Compiler) generateFirstMetaArenaAlloc() {
 	// Create arena with 4096 bytes capacity
 	fc.out.PushReg("rdi")
 	fc.out.PushReg("rsi")
-	fc.out.MovImmToReg("rdi", "4096")
+	if fc.eb.target.OS() == OSWindows {
+		fc.out.MovImmToReg("rcx", "4096") // Windows: first arg in rcx
+	} else {
+		fc.out.MovImmToReg("rdi", "4096") // Linux: first arg in rdi
+	}
 	fc.trackFunctionCall("malloc") // Will become _vibe67_arena_create
 	fc.out.CallSymbol("_vibe67_arena_create")
 	fc.out.PopReg("rsi")

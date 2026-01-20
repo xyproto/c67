@@ -1,0 +1,7 @@
+printf("A\n")
+arena {
+	printf("B\n")
+	x := alloc(8)
+	printf("C\n")
+}
+printf("D\n")

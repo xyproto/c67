@@ -1,0 +1,4 @@
+event_ptr := c.malloc(192)
+printf("Malloc returned: %p\n", event_ptr)
+printf("Stored value: %d\n", event_ptr)
+c.free(event_ptr)

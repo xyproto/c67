@@ -1,38 +1,48 @@
 # TODO
 
-## Priority 0: Windows PE - WORKING! ✅
+## Priority 0: Windows PE - Mostly Working! 🚧
 
-**CURRENT STATUS:** Windows PE compilation fully functional!
+**CURRENT STATUS:** Windows PE compilation works for most programs!
 
 ### What Works ✅
 1. Minimal programs (`main = { 42 }`) - EXIT CODE 42 ✅
 2. Variable arithmetic (`x = 10; y = 32; x + y`) - EXIT CODE 42 ✅  
 3. Function calls (`add(20, 22)`) - EXIT CODE 42 ✅
 4. **Increment/decrement operators** (`x++`, `x--`) - **FULLY WORKING** ✅
-   - Works for both local and global variables
-   - Properly handles mutable variable checks
-5. **Loops with `max inf`** - Now working! ✅
+5. **Loops with `max inf`** - Working! ✅
 6. **Simple printf** - `printf("Hello\n")` works ✅
-7. **Windows Arena Allocator** - Using HeapAlloc/GetProcessHeap ✅
-8. **SDL3 example** - Compiles and runs perfectly! ✅
-   - Event handling works
-   - Rendering works
-   - Increment operators work correctly
-9. **C FFI with `c.malloc` and `c.free`** - Fixed parser to allow keywords after dot ✅
+7. **SDL3 simple graphics** - Window creation, rendering works perfectly! ✅
+8. **Arena blocks without alloc** - `arena { println("Hi") }` works ✅
+9. **alloc() outside arena blocks** - Works! ✅
 10. Compilation completes without errors ✅
-11. Tests pass on Windows ✅
-
-### Fixed Issues ✅
-1. **Parser now allows `c.malloc` and `c.free`** - Keywords like `malloc` and `free` can appear after `.` for C FFI
-2. **Increment operators work with global variables** - Fixed codegen to handle both local and global variable increments
 
 ### Known Issues 🔧
-None! Windows PE is fully functional.
+1. **Arena alloc() inside arena blocks crashes** - `arena { x := alloc(100) }` causes access violation
+   - Issue: Calling convention fix for `_vibe67_arena_create` in grow.go
+   - Impact: TestArenaBlock passes, but alloc inside arena blocks fails
+   - Next: Debug arena pointer loading on Windows
+
+2. **String conversion crashes** - `x as string` causes access violation  
+   - Likely related to arena system (string conversion uses arenas internally)
+   - Impact: TestArenaStringAllocation fails
+
+3. **HeapAlloc fixes needed** - Several places use malloc before CRT init
+   - Fixed in `_vibe67_init_arenas` (lines 10893-10909)
+   - Fixed calling convention in grow.go
+   - More fixes may be needed
 
 ### Next Steps (in order)
-1. **Run full test suite on Linux** - Many tests are Linux-specific (ELF, etc.)
-2. **Clean up temporary test files** - Remove test executables and intermediate files
-3. **Cross-platform validation** (macOS)
+1. **Fix arena alloc() inside arena blocks**
+   - Debug why arena[1] pointer is invalid
+   - Check _vibe67_arena_ensure_capacity on Windows
+   - Verify meta-arena initialization
+
+2. **Fix string conversion**
+   - Likely will be fixed once arena alloc() works
+
+3. **Run full test suite on Linux** - Many tests are Linux-specific (ELF, etc.)
+
+4. **Clean up temporary test files** - Remove test executables and intermediate files
 
 ---
 
