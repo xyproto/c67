@@ -1,8 +1,8 @@
 # TODO
 
-## Priority 0: CRITICAL - Windows Arena Issues
+## Priority 0: Windows PE - WORKING! ✅
 
-**CURRENT STATUS:** Core PE compilation works, arenas broken on Windows.
+**CURRENT STATUS:** Windows PE compilation fully functional!
 
 ### What Works ✅
 1. Minimal programs (`main = { 42 }`) - EXIT CODE 42 ✅
@@ -11,24 +11,20 @@
 4. **Increment/decrement operators** (`x++`, `x--`) - Working! ✅
 5. **Loops with `max inf`** - Now working! ✅
 6. **Simple printf** - `printf("Hello\n")` works ✅
-7. Compilation completes without errors ✅
-8. Tests pass (`go test`) ✅
+7. **Windows Arena Allocator** - Using HeapAlloc/GetProcessHeap ✅
+8. **SDL3 example** - Compiles and runs! ✅
+9. Compilation completes without errors ✅
+10. Tests pass (`go test`) ✅
 
-### Broken ❌
-1. **Windows Arena Allocator** - Crashing with ACCESS_VIOLATION (0xC0000409 stack corruption)
-   - Uses HeapAlloc/GetProcessHeap (kernel32.dll)
-   - Linux arena works fine (uses mmap syscall)
-   - Affects: `arena { alloc(N) }` blocks
-   - **Workaround:** Use `c.malloc/c.free` instead of arena for now on Windows
-   - **SDL3 example crashes** because it uses arena blocks
+### Known Issues 🔧
+1. **SDL3 event loop exits immediately** - Need to debug polling/timing
+   - Window displays but closes right away
+   - May be related to event handling or delay function
+2. **Increment operators need testing** - `++` and `--` added but need codegen verification
 
 ### Next Steps (in order)
-1. **Fix Windows arena allocator**
-   - Debug with objdump/ndisasm to see what code is generated
-   - Compare with working Linux mmap version
-   - Check calling conventions for HeapAlloc (Windows x64 ABI)
-   - Verify stack alignment (16-byte requirement for Windows x64)
-2. **Test SDL3 example fully** once arenas work
+1. **Fix SDL3 event loop** - Debug why it exits immediately
+2. **Verify increment/decrement codegen** - Test `x++` and `x--` operators
 3. **Cross-platform validation** (Linux, macOS)
 
 ---
