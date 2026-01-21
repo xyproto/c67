@@ -1,0 +1,11 @@
+import sdl3 as sdl
+
+cstruct SDL_Event {
+    type as uint32,
+    timestamp as uint64
+}
+
+printf("SDL_Event size reported: %d\n", c.sizeof_SDL_Event)
+printf("Our struct size: 12 bytes (4 + 8)\n")
+
+main = { 0 }

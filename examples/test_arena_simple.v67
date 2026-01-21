@@ -1,0 +1,9 @@
+printf("Before arena\n")
+
+arena {
+    printf("Inside arena\n")
+    buf = alloc(128)
+    printf("Allocated at: %p\n", buf)
+}
+
+printf("After arena\n")

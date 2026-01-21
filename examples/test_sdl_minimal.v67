@@ -1,0 +1,19 @@
+import sdl3 as sdl
+
+printf("Before SDL_Init\n")
+
+result = sdl.SDL_Init(32)
+printf("SDL_Init returned: %d\n", result)
+
+result {
+    | result < 0 => {
+        printf("SDL_Init failed\n")
+        exitf("Failed\n")
+    }
+    ~> {
+        printf("SDL_Init succeeded\n")
+    }
+}
+
+sdl.SDL_Quit()
+printf("After SDL_Quit\n")

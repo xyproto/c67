@@ -1,10 +1,5 @@
 import sdl3 as sdl
 
-cstruct SDL_Event {
-    type as uint32,
-    timestamp as uint64
-}
-
 width = 620
 height = 387
 
@@ -43,45 +38,40 @@ running := 1
 loop_count := 0
 max_frames = 300
 
-event := (c.malloc(192) as SDL_Event)
-printf("Allocated event at: %p\n", event)
-
-@ loop_count < max_frames max inf {
-    poll_result = sdl.SDL_PollEvent(event)
-    poll_result {
-        | poll_result > 0 => {
-            printf("Got event type: %d\n", event.type)
-            event.type {
-                256 => { 
+arena {
+    event = alloc(128)
+    
+    @ running max inf {
+        @ sdl.SDL_PollEvent(event) > 0 max inf {
+            event_type = peek32(event, 0)
+            event_type {
+                | event_type == 256 => {
                     printf("Quit event received\n")
-                    break @1
+                    running <- 0
                 }
-                768 => {
-                    sc = peek32(event, 16)
-                    printf("Key event, scancode: %d\n", sc)
-                    sc {
-                        41 => { 
-                            printf("Escape key pressed\n")
-                            break @1
-                        }
-                    }
+                | event_type == 768 => {
+                    printf("Key pressed\n")
+                    running <- 0
                 }
             }
         }
-    }
-
-    sdl.SDL_RenderClear(renderer)
-    sdl.SDL_RenderTexture(renderer, tex, 0, 0)
-    sdl.SDL_RenderPresent(renderer)
-    sdl.SDL_Delay(16)
-    
-    loop_count++
-    
-    loop_count {
-        | loop_count % 60 == 0 => { printf("Frame: %d\n", loop_count) }
+        
+        sdl.SDL_RenderClear(renderer)
+        sdl.SDL_RenderTexture(renderer, tex, 0, 0)
+        sdl.SDL_RenderPresent(renderer)
+        sdl.SDL_Delay(16)
+        
+        loop_count++
+        
+        loop_count {
+            | loop_count % 60 == 0 => { printf("Frame: %d\n", loop_count) }
+            | loop_count >= max_frames => {
+                printf("Max frames reached\n")
+                running <- 0
+            }
+        }
     }
 }
 
-c.free(event)
 printf("Exited after %d frames\n", loop_count)
 

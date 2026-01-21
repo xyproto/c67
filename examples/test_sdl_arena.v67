@@ -1,0 +1,33 @@
+import sdl3 as sdl
+
+width = 620
+height = 387
+
+sdl.SDL_Init(32) or! {
+    exitf("SDL_Init failed\n")
+}
+defer sdl.SDL_Quit()
+
+printf("Creating window...\n")
+
+window = sdl.SDL_CreateWindow("Hello World!", width, height, 0) or! {
+    exitf("Failed to create window\n")
+}
+defer sdl.SDL_DestroyWindow(window)
+
+printf("Creating renderer...\n")
+
+renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+    exitf("Failed to create renderer\n")
+}
+defer sdl.SDL_DestroyRenderer(renderer)
+
+printf("Entering arena...\n")
+
+arena {
+    printf("Inside arena\n")
+    event = alloc(128)
+    printf("Allocated event buffer\n")
+}
+
+printf("Done!\n")

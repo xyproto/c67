@@ -1,0 +1,73 @@
+import sdl3 as sdl
+
+width = 620
+height = 387
+
+sdl.SDL_Init(32) or! {
+    exitf("SDL_Init failed\n")
+}
+defer sdl.SDL_Quit()
+
+window = sdl.SDL_CreateWindow("Hello World!", width, height, 0) or! {
+    exitf("Failed to create window\n")
+}
+defer sdl.SDL_DestroyWindow(window)
+
+renderer = sdl.SDL_CreateRenderer(window, 0) or! {
+    exitf("Failed to create renderer\n")
+}
+defer sdl.SDL_DestroyRenderer(renderer)
+
+printf("Before file load\n")
+
+file = sdl.SDL_IOFromFile("img/grumpy-cat.bmp", "rb") or! {
+    exitf("Error reading file\n")
+}
+
+printf("After file load\n")
+
+bmp = sdl.SDL_LoadBMP_IO(file, 1) or! {
+    exitf("Error creating surface\n")
+}
+defer sdl.SDL_DestroySurface(bmp)
+
+printf("After BMP load\n")
+
+tex = sdl.SDL_CreateTextureFromSurface(renderer, bmp) or! {
+    exitf("Error creating texture\n")
+}
+defer sdl.SDL_DestroyTexture(tex)
+
+printf("After texture creation\n")
+
+running := 1
+
+printf("Entering arena\n")
+
+arena {
+    printf("Inside arena\n")
+    event = alloc(128)
+    printf("After alloc\n")
+    
+    @ running max 5 {
+        printf("Before SDL_PollEvent\n")
+        poll_result = sdl.SDL_PollEvent(event)
+        printf("SDL_PollEvent returned: %d\n", poll_result)
+        printf("Event pointer value: %f\n", event)
+        
+        poll_result {
+            | poll_result > 0 => {
+                printf("Got event, reading type...\n")
+                event_type = peek32(event, 0)
+                printf("Event type: %d\n", event_type)
+            }
+        }
+        
+        printf("Loop iteration done\n")
+        running <- 0
+    }
+    
+    printf("After loop\n")
+}
+
+printf("After arena\n")

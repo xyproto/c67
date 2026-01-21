@@ -17230,8 +17230,7 @@ func (fc *C67Compiler) compileCall(call *CallExpr) {
 		fc.compileExpression(call.Args[1])
 		fc.out.Cvttsd2si("rsi", "xmm0") // offset in rsi
 
-		// Read uint32 from [rdi + rsi]
-		fc.out.MovMemToReg("eax", "rdi", 0) // Use offset from rsi
+		// Add offset to pointer, then read uint32 from [rdi + rsi]
 		fc.out.AddRegToReg("rdi", "rsi")    // Add offset to pointer
 		fc.out.MovMemToReg("eax", "rdi", 0) // Read 32-bit value
 

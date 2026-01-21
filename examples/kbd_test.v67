@@ -1,0 +1,38 @@
+import sdl3 as sdl
+
+sdl.SDL_Init(sdl.SDL_INIT_VIDEO) or! { exitf("SDL_Init failed\n") }
+defer sdl.SDL_Quit()
+
+window = sdl.SDL_CreateWindow("Keyboard Test", 400, 300, 0) or! { exitf("Window failed\n") }
+defer sdl.SDL_DestroyWindow(window)
+
+printf("Press ESC to quit, or wait 5 seconds...\n")
+
+event := c.malloc(128)
+running := 1
+frame_count := 0
+
+@ frame_count < 300 max inf {
+    poll = sdl.SDL_PollEvent(event)
+    poll {
+        | poll > 0 => {
+            type = peek32(event, 0)
+            type {
+                256 => { printf("Quit!\n"); break @1 }
+                768 => {
+                    scancode = peek32(event, 16)
+                    printf("Key scancode: %d\n", scancode)
+                    scancode {
+                        41 => { printf("Escape!\n"); break @1 }
+                    }
+                }
+            }
+        }
+    }
+    sdl.SDL_Delay(16)
+    frame_count++
+}
+
+c.free(event)
+printf("Exited after %d frames\n", frame_count)
+main = { 0 }
