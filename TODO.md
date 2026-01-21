@@ -19,20 +19,39 @@
 12. Compilation completes without errors ✅
 
 ### Known Remaining Issues 🔧
-1. **SDL3 event processing** - SDL_PollEvent returns 0 (no events detected)
-   - Window displays correctly
-   - Rendering works
-   - Exits after 300 frames as expected
-   - But mouse/keyboard events aren't being captured
-   - May be SDL3 API usage issue, not compiler issue
 
-2. **Arena alloc() inside arena blocks crashes** - `arena { x := alloc(100) }` causes access violation
+1. **`malloc`/`free` keywords need implementation** - PRIORITY
+   - Currently parsed as C FFI calls to c.malloc/c.free
+   - Should use arena allocator instead (per DIRECTIONS.md)
+   - Need to:
+     a) Detect `malloc`/`free` in codegen
+     b) Initialize default arena if not already initialized  
+     c) Generate code to use arena allocator
+     d) Make `malloc` return cptr from arena
+     e) Make `free` a no-op (arena cleanup on scope exit)
+   - Impact: TestCFFIFunctionsWork fails
+
+2. **SDL3 event processing** - Lower priority
+   - SDL_PollEvent returns 0 (no events detected)
+   - Window displays correctly, rendering works, exits after 300 frames
+   - Mouse/keyboard events aren't being captured
+   - May be SDL3 API usage issue, not compiler issue
+   - Needs investigation of SDL_Event structure layout
+
+3. **Arena alloc() inside arena blocks crashes** - Lower priority
+   - `arena { x := alloc(100) }` causes access violation
    - Issue: Calling convention for arena functions on Windows
    - Impact: TestArenaBlock passes, but alloc inside arena blocks fails
 
-3. **String conversion crashes** - `x as string` causes access violation  
+4. **String conversion crashes** - Lower priority
+   - `x as string` causes access violation  
    - Likely related to arena system
    - Impact: TestArenaStringAllocation fails
+
+5. **Type annotation tests failing** - Low priority
+   - TestTypeAnnotations/multiple_variables_with_different_types
+   - TestForeignTypeAnnotations/cdouble_type_annotation
+   - Likely pre-existing issues, not related to recent changes
 
 ---
 
