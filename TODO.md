@@ -1,52 +1,58 @@
 # TODO
 
-## Priority 0: Windows PE - WORKING! ✅🎉
+# TODO
 
-**CURRENT STATUS:** Windows PE compilation fully functional! SDL3 example working end-to-end!
+## Priority 0: Windows PE peek32 Bug 🐛
+
+**CURRENT STATUS:** Windows PE working for basic programs, but peek32() causes crashes
 
 ### What Works ✅
 1. Minimal programs (`main = { 42 }`) - EXIT CODE 42 ✅
-2. Variable arithmetic (`x = 10; y = 32; x + y`) - EXIT CODE 42 ✅  
-3. Function calls (`add(20, 22)`) - EXIT CODE 42 ✅
-4. **Increment/decrement operators** (`x++`, `x--`) - FULLY WORKING ✅
-5. **Loops with `max inf`** - Working! ✅
-6. **Simple printf** - `printf("Hello\n")` works ✅
-7. **SDL3 full example** - Window, rendering, event loop, auto-quit after 300 frames! ✅
-8. **SDL3 constant resolution** - `sdl.SDL_INIT_VIDEO` correctly resolves to 32 ✅
-9. **Arena blocks without alloc** - `arena { println("Hi") }` works ✅
-10. **alloc() outside arena blocks** - Works! ✅
-11. **break @1 for loop exit** - Works! ✅
-12. Compilation completes without errors ✅
+2. Variable arithmetic - EXIT CODE 42 ✅  
+3. Function calls - EXIT CODE 42 ✅
+4. Simple printf -  works ✅
+5. SDL3 initialization - `sdl.SDL_Init(32)` works ✅
+6. SDL3 window/renderer creation - works ✅
+7. **Arena allocator on Windows** - VirtualAlloc working properly ✅
+8. **Arena + SDL3** - Can create arena, alloc buffer, use with SDL ✅
+9. **SDL_PollEvent** - Returns events correctly ✅
 
-### Known Remaining Issues 🔧
+### Critical Bug 🔥
 
-1. **`malloc`/`free` keywords need implementation** - PRIORITY
-   - Currently parsed as C FFI calls to c.malloc/c.free
-   - Should use arena allocator instead (per DIRECTIONS.md)
-   - Need to:
-     a) Detect `malloc`/`free` in codegen
-     b) Initialize default arena if not already initialized  
-     c) Generate code to use arena allocator
-     d) Make `malloc` return cptr from arena
-     e) Make `free` a no-op (arena cleanup on scope exit)
-   - Impact: TestCFFIFunctionsWork fails
+**peek32() crashes with access violation when reading arena-allocated memory**
 
-2. **SDL3 event processing** - Lower priority
-   - SDL_PollEvent returns 0 (no events detected)
-   - Window displays correctly, rendering works, exits after 300 frames
-   - Mouse/keyboard events aren't being captured
-   - May be SDL3 API usage issue, not compiler issue
-   - Needs investigation of SDL_Event structure layout
+**Steps to reproduce:**
+```vibe67
+arena {
+    event = alloc(128)
+    result = sdl.SDL_PollEvent(event)  // Works
+    event_type = peek32(event, 0)      // CRASHES with 0xC0000005
+}
+```
 
-3. **Arena alloc() inside arena blocks crashes** - Lower priority
-   - `arena { x := alloc(100) }` causes access violation
-   - Issue: Calling convention for arena functions on Windows
-   - Impact: TestArenaBlock passes, but alloc inside arena blocks fails
+**Working tests:**
+- `test_arena_simple.v67` - Arena alloc works, returns valid pointer
+- `test_sdl_minimal.v67` - SDL init/quit works
+- `test_sdl_arena.v67` - SDL + arena together works (no peek32)
+- SDL_PollEvent returns 1 (got event)
 
-4. **String conversion crashes** - Lower priority
-   - `x as string` causes access violation  
-   - Likely related to arena system
-   - Impact: TestArenaStringAllocation fails
+**Investigation needed:**
+1. Is the pointer conversion correct in `EmitPointerToFloat64`?
+2. Is `Cvttsd2si` in peek32 converting the float64 back correctly?
+3. Does the pointer need special handling for arena-allocated memory?
+4. Check generated assembly for peek32 call
+
+**Potential fix approaches:**
+A. Use list[offset] syntax instead of peek32 (per DIRECTIONS.md preference)
+B. Fix pointer representation/conversion in peek32  
+C. Add explicit pointer type tracking (but goes against universal type system)
+
+### Next Steps
+
+1. **Disassemble test_sdl_debug.exe** to see actual machine code for peek32
+2. **Add debug output** showing pointer values before crash
+3. **Try list[0] syntax** as alternative to peek32(ptr, 0)
+4. **Check if issue is Windows-specific** or affects Linux too
 
 5. **Type annotation tests failing** - Low priority
    - TestTypeAnnotations/multiple_variables_with_different_types

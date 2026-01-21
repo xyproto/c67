@@ -43,7 +43,7 @@ arena {
     
     @ running max inf {
         @ sdl.SDL_PollEvent(event) > 0 max inf {
-            event_type = peek32(event, 0)
+            event_type = event[0]
             event_type {
                 | event_type == 256 => {
                     printf("Quit event received\n")

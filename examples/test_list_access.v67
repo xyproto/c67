@@ -1,0 +1,12 @@
+printf("Testing list access\n")
+
+arena {
+    buf = alloc(128)
+    printf("Allocated buffer\n")
+    
+    // Try to use list syntax to access memory
+    val = buf[0]
+    printf("Value at index 0: %f\n", val)
+}
+
+printf("Done\n")
